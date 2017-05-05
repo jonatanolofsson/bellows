@@ -186,6 +186,18 @@ def unbind(ctx, endpoint, cluster):
         click.echo("Device %s is not in the device database" % node)
 
 
+@zdo.command()
+@click.pass_context
+@util.app
+def leave(ctx):
+    """Tell a node to leave the network"""
+    app = ctx.obj['app']
+    dev = app.devices[ctx.obj['node']]
+
+    v = yield from dev.zdo.leave()
+    click.echo(v)
+
+
 @main.group()
 @click.pass_context
 @opts.database_file
