@@ -49,6 +49,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         yield from self._cfg(c.CONFIG_APPLICATION_ZDO_FLAGS, zdo)
         yield from self._cfg(c.CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE, 2)
         yield from self._cfg(c.CONFIG_PACKET_BUFFER_COUNT, 0xff)
+        yield from self._cfg(c.CONFIG_KEY_TABLE_SIZE, 1)
 
     @asyncio.coroutine
     def startup(self, auto_form=False):
