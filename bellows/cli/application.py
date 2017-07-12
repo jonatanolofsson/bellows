@@ -55,6 +55,16 @@ def permit(ctx, database, duration_s):
 @click.pass_context
 def devices(ctx, database):
     """Show device database"""
+
+    def print_clusters(title, clusters):
+        clusters = sorted(list(clusters.items()))
+        if clusters:
+            click.echo("      %s:" % (title, ))
+        for cluster_id, cluster in clusters:
+            click.echo("        %s (%s)" % (
+                cluster.name, cluster_id
+            ))
+
     ezsp = bellows.ezsp.EZSP()
     app = bellows.zigbee.application.ControllerApplication(ezsp, database)
     for ieee, dev in app.devices.items():
@@ -75,13 +85,8 @@ def devices(ctx, database):
                         ep.device_type,
                     )
                 )
-                clusters = sorted(list(ep.clusters.keys()))
-                if clusters:
-                    click.echo("      Clusters:")
-                    for cluster in clusters:
-                        click.echo("        %s (%s)" % (
-                            ep.clusters[cluster].name, cluster
-                        ))
+                print_clusters("Input Clusters", ep.in_clusters)
+                print_clusters("Output Clusters", ep.out_clusters)
 
 
 @main.group()
@@ -144,7 +149,7 @@ def bind(ctx, endpoint, cluster):
     app = ctx.obj['app']
     node = ctx.obj['node']
 
-    dev, endp, clust = util.get_cluster(app, node, endpoint, cluster)
+    dev, endp, clust = util.get_in_cluster(app, node, endpoint, cluster)
     if clust is None:
         return
 
@@ -162,7 +167,7 @@ def unbind(ctx, endpoint, cluster):
     app = ctx.obj['app']
     node = ctx.obj['node']
 
-    dev, endp, clust = util.get_cluster(app, node, endpoint, cluster)
+    dev, endp, clust = util.get_in_cluster(app, node, endpoint, cluster)
     if clust is None:
         return
 
@@ -207,11 +212,11 @@ def read_attribute(ctx, attribute):
     endpoint_id = ctx.obj['endpoint']
     cluster_id = ctx.obj['cluster']
 
-    dev, endpoint, cluster = util.get_cluster(app, node, endpoint_id, cluster_id)
+    dev, endpoint, cluster = util.get_in_cluster(app, node, endpoint_id, cluster_id)
     if cluster is None:
         return
 
-    v = yield from cluster.read_attributes([attribute])
+    v = yield from cluster.read_attributes([attribute], allow_cache=False)
     if not v:
         click.echo("Received empty response")
     elif attribute not in v[0]:
@@ -233,7 +238,7 @@ def write_attribute(ctx, attribute, value):
     endpoint_id = ctx.obj['endpoint']
     cluster_id = ctx.obj['cluster']
 
-    dev, endpoint, cluster = util.get_cluster(app, node, endpoint_id, cluster_id)
+    dev, endpoint, cluster = util.get_in_cluster(app, node, endpoint_id, cluster_id)
     if cluster is None:
         return
 
@@ -252,7 +257,7 @@ def commands(ctx):
     ezsp = bellows.ezsp.EZSP()
     app = bellows.zigbee.application.ControllerApplication(ezsp, database)
 
-    dev, endpoint, cluster = util.get_cluster(app, node, endpoint_id, cluster_id)
+    dev, endpoint, cluster = util.get_in_cluster(app, node, endpoint_id, cluster_id)
     if cluster is None:
         return
 
@@ -271,7 +276,7 @@ def command(ctx, command, parameters):
     endpoint_id = ctx.obj['endpoint']
     cluster_id = ctx.obj['cluster']
 
-    dev, endpoint, cluster = util.get_cluster(app, node, endpoint_id, cluster_id)
+    dev, endpoint, cluster = util.get_in_cluster(app, node, endpoint_id, cluster_id)
     if cluster is None:
         return
 
@@ -299,7 +304,7 @@ def configure_reporting(ctx,
     endpoint_id = ctx.obj['endpoint']
     cluster_id = ctx.obj['cluster']
 
-    dev, endpoint, cluster = util.get_cluster(app, node, endpoint_id, cluster_id)
+    dev, endpoint, cluster = util.get_in_cluster(app, node, endpoint_id, cluster_id)
     if cluster is None:
         return
 
