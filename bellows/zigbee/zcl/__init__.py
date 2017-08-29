@@ -77,6 +77,11 @@ class Registry(type):
             for command_id, details in cls.server_commands.items():
                 command_name, schema, is_reply = details
                 cls._server_command_idx[command_name] = command_id
+        if hasattr(cls, 'client_commands'):
+            cls._client_command_idx = {}
+            for command_id, details in cls.client_commands.items():
+                command_name, schema, is_reply = details
+                cls._client_command_idx[command_name] = command_id
 
 
 class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
@@ -84,6 +89,7 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
     _registry = {}
     _registry_range = {}
     _server_command_idx = {}
+    _client_command_idx = {}
 
     def __init__(self, endpoint):
         self._endpoint = endpoint
@@ -97,13 +103,16 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
         else:
             for cluster_id_range, cluster in cls._registry_range.items():
                 if cluster_id_range[0] <= cluster_id <= cluster_id_range[1]:
-                    return cluster(endpoint)
+                    c = cluster(endpoint)
+                    c.cluster_id = cluster_id
+                    return c
 
         LOGGER.warning("Unknown cluster %s", cluster_id)
         c = cls(endpoint)
         c.cluster_id = cluster_id
         return c
 
+    @util.retryable_request
     def request(self, general, command_id, schema, *args):
         if len(schema) != len(args):
             self.error("Schema and args lengths do not match")
@@ -120,6 +129,20 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
         data += t.serialize(args, schema)
 
         return self._endpoint.device.request(aps, data)
+
+    def reply(self, command_id, schema, *args):
+        if len(schema) != len(args):
+            self.error("Schema and args lengths do not match")
+            error = asyncio.Future()
+            error.set_exception(ValueError("Missing parameters for request, expected %d argument(s)" % len(schema)))
+            return error
+
+        aps = self._endpoint.get_aps(self.cluster_id)
+        frame_command = 0b1001  # Cluster reply command
+        data = bytes([frame_command, aps.sequence, command_id])
+        data += t.serialize(args, schema)
+
+        return self._endpoint.device.reply(aps, data)
 
     def handle_message(self, is_reply, aps_frame, tsn, command_id, args):
         if is_reply:
@@ -144,10 +167,10 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
             for attr in args[0]:
                 self._update_attribute(attr.attrid, attr.value.value)
         else:
-            self.warn("No handler for general command %s", command_id)
+            self.debug("No handler for general command %s", command_id)
 
     def handle_cluster_request(self, aps_frame, tsn, command_id, args):
-        self.warn("No handler for cluster command %s", command_id)
+        self.debug("No handler for cluster command %s", command_id)
 
     @asyncio.coroutine
     def read_attributes_raw(self, attributes):
@@ -252,6 +275,10 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
         schema = self.server_commands[command][1]
         return self.request(False, command, schema, *args)
 
+    def client_command(self, command, *args):
+        schema = self.client_commands[command][1]
+        return self.reply(command, schema, *args)
+
     @property
     def name(self):
         return self.__class__.__name__
@@ -283,15 +310,22 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
 
     def __getattr__(self, name):
         try:
-            return functools.partial(
-                self.command,
-                self._server_command_idx[name],
-            )
+            if name in self._client_command_idx:
+                return functools.partial(
+                    self.client_command,
+                    self._client_command_idx[name],
+                )
+            else:
+                return functools.partial(
+                    self.command,
+                    self._server_command_idx[name],
+                )
         except KeyError:
             raise AttributeError("No such command name: %s" % (name, ))
 
     def __getitem__(self, key):
         return self.read_attributes([key], allow_cache=True, raw=True)
+
 
 # Import to populate the registry
 from . import clusters  # noqa: F401, F402

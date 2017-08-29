@@ -1,4 +1,5 @@
 import logging
+import asyncio
 
 import bellows.types as t
 from bellows.zigbee import util
@@ -40,13 +41,14 @@ class ZDO(util.LocalLogMixin, util.ListenableMixin):
         data += t.serialize(args, schema)
         return aps, data
 
+    @util.retryable_request
     def request(self, command, *args):
         aps, data = self._serialize(command, *args)
         return self._device.request(aps, data)
 
     def reply(self, command, *args):
         aps, data = self._serialize(command, *args)
-        return self._device.reply(aps, data)
+        return asyncio.ensure_future(self._device.reply(aps, data))
 
     def handle_message(self, is_reply, aps_frame, tsn, command_id, args):
         if is_reply:
