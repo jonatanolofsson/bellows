@@ -66,9 +66,6 @@ class Endpoint(zutil.LocalLogMixin, zutil.ListenableMixin):
         for cluster in sd.output_clusters:
             self.add_output_cluster(cluster)
 
-        for cluster in sd.output_clusters:
-            self.add_cluster(cluster)
-
         self.status = Status.ZDO_INIT
 
     def add_input_cluster(self, cluster_id):
