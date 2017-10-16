@@ -123,7 +123,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         e = self._ezsp
         v = yield from e.setPolicy(
             t.EzspPolicyId.TC_KEY_REQUEST_POLICY,
-            t.EzspDecisionId.GENERATE_NEW_TC_LINK_KEY,
+            t.EzspDecisionId.DENY_TC_KEY_REQUESTS,
         )
         assert v[0] == 0  # TODO: Better check
         v = yield from e.setPolicy(
