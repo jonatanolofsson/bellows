@@ -126,12 +126,6 @@ def test_rstack_frame_received(gw):
 
 def test_wrong_rstack_frame_received(gw):
     gw._reset_future = mock.MagicMock()
-    gw.data_received(b'\xc1\x02\x01\nR\x7e')
-    assert gw._reset_future.set_result.call_count == 0
-
-
-def test_wrong_rstack_frame_received(gw):
-    gw._reset_future = mock.MagicMock()
     gw.data_received(b'\xc1\x02\x01\xab\x18\x7e')
     assert gw._reset_future.set_result.call_count == 0
 
