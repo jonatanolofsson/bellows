@@ -291,10 +291,6 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
     def commands(self):
         return list(self._server_command_idx.keys())
 
-    @property
-    def commands(self):
-        return list(self._server_command_idx.keys())
-
     def _update_attribute(self, attrid, value):
         self._attr_cache[attrid] = value
         self.listener_event('attribute_updated', attrid, value)
