@@ -113,7 +113,7 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
         return c
 
     @util.retryable_request
-    def request(self, general, command_id, schema, *args):
+    def request(self, general, command_id, schema, *args, manufacturer=None):
         if len(schema) != len(args):
             self.error("Schema and args lengths do not match in request")
             error = asyncio.Future()
@@ -125,12 +125,16 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
             frame_control = 0x00
         else:
             frame_control = 0x01
+        if manufacturer is not None:
+            frame_control |= 0b0100
         data = bytes([frame_control, aps.sequence, command_id])
+        if manufacturer is not None:
+            data += manufacturer.to_bytes(2, 'big')
         data += t.serialize(args, schema)
 
         return self._endpoint.device.request(aps, data)
 
-    def reply(self, command_id, schema, *args):
+    def reply(self, command_id, schema, *args, manufacturer=None):
         if len(schema) != len(args):
             self.error("Schema and args lengths do not match in reply")
             error = asyncio.Future()
@@ -139,7 +143,11 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
 
         aps = self._endpoint.get_aps(self.cluster_id)
         frame_control = 0b1001  # Cluster reply command
+        if manufacturer is not None:
+            frame_control |= 0b0100
         data = bytes([frame_control, aps.sequence, command_id])
+        if manufacturer is not None:
+            data += manufacturer.to_bytes(2, 'big')
         data += t.serialize(args, schema)
 
         return self._endpoint.device.reply(aps, data)
@@ -173,14 +181,14 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
         self.debug("No handler for cluster command %s", command_id)
 
     @asyncio.coroutine
-    def read_attributes_raw(self, attributes):
+    def read_attributes_raw(self, attributes, manufacturer=None):
         schema = foundation.COMMANDS[0x00][1]
         attributes = [t.uint16_t(a) for a in attributes]
-        v = yield from self.request(True, 0x00, schema, attributes)
+        v = yield from self.request(True, 0x00, schema, attributes, manufacturer=manufacturer)
         return v
 
     @asyncio.coroutine
-    def read_attributes(self, attributes, allow_cache=False, raw=False):
+    def read_attributes(self, attributes, allow_cache=False, raw=False, manufacturer=None):
         if raw:
             assert len(attributes) == 1
         success, failure = {}, {}
@@ -209,7 +217,7 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
                 return success[attributes[0]]
             return success, failure
 
-        result = yield from self.read_attributes_raw(to_read)
+        result = yield from self.read_attributes_raw(to_read, manufacturer=manufacturer)
         if not isinstance(result[0], list):
             for attrid in to_read:
                 orig_attribute = orig_attributes[attrid]
