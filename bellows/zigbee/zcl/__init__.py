@@ -279,9 +279,9 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
         cfg.reportable_change = reportable_change
         return self.request(True, 0x06, schema, [cfg])
 
-    def command(self, command, *args):
+    def command(self, command, *args, manufacturer=None):
         schema = self.server_commands[command][1]
-        return self.request(False, command, schema, *args)
+        return self.request(False, command, schema, *args, manufacturer=manufacturer)
 
     def client_command(self, command, *args):
         schema = self.client_commands[command][1]
