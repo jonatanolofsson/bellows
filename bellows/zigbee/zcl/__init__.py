@@ -127,9 +127,10 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
             frame_control = 0x01
         if manufacturer is not None:
             frame_control |= 0b0100
-        data = bytes([frame_control, aps.sequence, command_id])
-        if manufacturer is not None:
-            data += manufacturer.to_bytes(2, 'big')
+            manufacturer = manufacturer.to_bytes(2, 'little')
+        else:
+            manufacturer = b''
+        data = bytes([frame_control]) + manufacturer + bytes([aps.sequence, command_id])
         data += t.serialize(args, schema)
 
         return self._endpoint.device.request(aps, data)
@@ -145,9 +146,10 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
         frame_control = 0b1001  # Cluster reply command
         if manufacturer is not None:
             frame_control |= 0b0100
-        data = bytes([frame_control, aps.sequence, command_id])
-        if manufacturer is not None:
-            data += manufacturer.to_bytes(2, 'big')
+            manufacturer = manufacturer.to_bytes(2, 'little')
+        else:
+            manufacturer = b''
+        data = bytes([frame_control]) + manufacturer + bytes([aps.sequence, command_id])
         data += t.serialize(args, schema)
 
         return self._endpoint.device.reply(aps, data)
