@@ -152,7 +152,7 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
         data = bytes([frame_control]) + manufacturer + bytes([aps.sequence, command_id])
         data += t.serialize(args, schema)
 
-        return self._endpoint.device.reply(aps, data)
+        return asyncio.ensure_future(self._endpoint.device.reply(aps, data))
 
     def handle_message(self, is_reply, aps_frame, tsn, command_id, args):
         if is_reply:
