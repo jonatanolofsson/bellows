@@ -177,10 +177,13 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
             for attr in args[0]:
                 self._update_attribute(attr.attrid, attr.value.value)
         else:
-            self.debug("No handler for general command %s", command_id)
+            self.handle_cluster_general_request(aps_frame, tsn, command_id, args)
 
     def handle_cluster_request(self, aps_frame, tsn, command_id, args):
         self.debug("No handler for cluster command %s", command_id)
+
+    def handle_cluster_general_request(self, aps_frame, tsn, command_id, args):
+        self.debug("No handler for general command %s", command_id)
 
     @asyncio.coroutine
     def read_attributes_raw(self, attributes, manufacturer=None):
@@ -259,7 +262,6 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
             except ValueError as e:
                 self.error(str(e))
 
-        print(args)
         if is_report:
             schema = foundation.COMMANDS[0x01][1]
             return self.reply(0x01, schema, args)

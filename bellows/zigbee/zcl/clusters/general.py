@@ -334,7 +334,7 @@ class Time(Cluster):
     server_commands = {}
     client_commands = {}
 
-    def handle_cluster_request(self, aps_frame, tsn, command_id, *args):
+    def handle_cluster_general_request(self, aps_frame, tsn, command_id, *args):
         if command_id == 0:
             epoc = datetime(2000, 1, 1, 0, 0, 0, 0)
             data = {}
