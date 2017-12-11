@@ -8,6 +8,8 @@ import click
 import bellows.ezsp
 import bellows.zigbee.application
 import bellows.zigbee.endpoint
+import bellows.types as t
+from bellows.zigbee.zdo.types import CLUSTER_ID as ZDO_CLUSTER_ID
 from . import opts
 from . import util
 from .main import main
@@ -16,8 +18,8 @@ from .main import main
 @main.command()
 @opts.database_file
 @opts.channel
-@opts.extended_pan
 @opts.pan
+@opts.extended_pan
 @click.pass_context
 def form(ctx, database, channel, pan_id, extended_pan_id):
     """Form a new ZigBee network"""
@@ -137,7 +139,7 @@ def endpoints(ctx):
         return
 
     try:
-        v = yield from dev.zdo.request(0x0005, dev.nwk)
+        v = yield from dev.zdo.request(ZDO_CLUSTER_ID.Active_EP_req, dev.nwk)
         if v[0] != 0:
             click.echo("Non-success response: %s" % (v, ))
         else:
@@ -160,7 +162,7 @@ def get_endpoint(ctx, endpoint):
         return
 
     try:
-        v = yield from dev.zdo.request(0x0004, dev.nwk, endpoint)
+        v = yield from dev.zdo.request(ZDO_CLUSTER_ID.Simple_Desc_req, dev.nwk, endpoint)
         if v[0] != 0:
             click.echo("Non-success response: %s" % (v, ))
         else:
@@ -228,9 +230,9 @@ def leave(ctx):
 @main.group()
 @click.pass_context
 @opts.database_file
-@click.argument('node', type=util.ZigbeeNodeParamType())
-@click.argument('endpoint', type=click.IntRange(1, 255))
-@click.argument('cluster', type=click.IntRange(0, 65535))
+@opts.arg_node
+@opts.arg_endpoint
+@opts.arg_cluster
 def zcl(ctx, database, node, cluster, endpoint):
     """Peform ZCL operations against a device"""
     ctx.obj['database_file'] = database
@@ -241,7 +243,7 @@ def zcl(ctx, database, node, cluster, endpoint):
 
 @zcl.command()
 @click.pass_context
-@click.argument('attribute', type=click.IntRange(0, 65535))
+@opts.arg_attribute
 @opts.manufacturer
 @util.app
 def read_attribute(ctx, attribute, manufacturer):
@@ -270,8 +272,8 @@ def read_attribute(ctx, attribute, manufacturer):
 
 @zcl.command()
 @click.pass_context
-@click.argument('attribute', type=click.IntRange(0, 65535))
-@click.argument('value', type=click.IntRange(0, 65535))
+@opts.arg_attribute
+@opts.arg_attribute_value
 @opts.manufacturer
 @util.app
 def write_attribute(ctx, attribute, value, manufacturer):
@@ -337,7 +339,7 @@ def command(ctx, command, parameters, manufacturer):
 
 @zcl.command()
 @click.pass_context
-@click.argument('attribute', type=click.IntRange(0, 65535))
+@opts.arg_attribute
 @click.argument('min_interval', type=click.IntRange(0, 65535))
 @click.argument('max_interval', type=click.IntRange(0, 65535))
 @click.argument('reportable_change', type=click.INT)
