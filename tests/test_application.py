@@ -215,9 +215,9 @@ def test_join_handler(app, ieee):
 
 def test_join_handler_skip(app, ieee):
     app._handle_join(1, ieee, None, None, None)
-    app.devices[ieee].status = device.Status.ZDO_INIT
+    app.devices[ieee].status = device.Status.INITIALIZED
     app._handle_join(1, ieee, None, None, None)
-    assert app.devices[ieee].status == device.Status.ZDO_INIT
+    assert app.devices[ieee].status == device.Status.INITIALIZED
 
 
 def test_join_handler_change_id(app, ieee):
