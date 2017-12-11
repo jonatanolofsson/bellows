@@ -1,3 +1,4 @@
+import functools
 import logging
 import asyncio
 
@@ -5,6 +6,7 @@ import bellows.types as t
 from bellows.zigbee import util
 
 from . import types
+from .types import CLUSTER_ID
 
 
 LOGGER = logging.getLogger(__name__)
@@ -43,6 +45,8 @@ class ZDO(util.LocalLogMixin, util.ListenableMixin):
 
     @util.retryable_request
     def request(self, command, *args):
+        if isinstance(command, str):
+            command = CLUSTER_ID[command]
         aps, data = self._serialize(command, *args)
         return self._device.request(aps, data)
 
@@ -57,18 +61,18 @@ class ZDO(util.LocalLogMixin, util.ListenableMixin):
 
         self.debug("ZDO request 0x%04x: %s", command_id, args)
         app = self._device.application
-        if command_id == 0x0000:  # NWK_addr_req
+        if command_id == CLUSTER_ID.NWK_addr_req:
             if app.ieee == args[0]:
-                self.reply(0x8000, 0, app.ieee, app.nwk, 0, 0, [])
-        elif command_id == 0x0001:  # IEEE_addr_req
+                self.reply(CLUSTER_ID.NWK_addr_rsp, 0, app.ieee, app.nwk, 0, 0, [])
+        elif command_id == CLUSTER_ID.IEEE_addr_req:  # IEEE_addr_req
             broadcast = (0xffff, 0xfffd, 0xfffc)
             if args[0] in broadcast or app.nwk == args[0]:
-                self.reply(0x8001, 0, app.ieee, app.nwk, 0, 0, [])
-        elif command_id == 0x0006:  # Match_Desc_req
+                self.reply(CLUSTER_ID.IEEE_addr_rsp, 0, app.ieee, app.nwk, 0, 0, [])
+        elif command_id == CLUSTER_ID.Match_Desc_req:  # Match_Desc_req
             self.handle_match_desc(*args)
-        elif command_id == 0x0013:  # Device_annce
+        elif command_id == CLUSTER_ID.Device_annce:
             self.listener_event('device_announce', self._device)
-        elif command_id == 0x0036:  # Mgmt_Permit_Joining_req
+        elif command_id == CLUSTER_ID.Mgmt_Permit_Joining_req:
             self.listener_event('permit_duration', args[0])
         else:
             self.warn("Unsupported ZDO request 0x%04x", command_id)
@@ -76,9 +80,9 @@ class ZDO(util.LocalLogMixin, util.ListenableMixin):
     def handle_match_desc(self, addr, profile, in_clusters, out_clusters):
         local_addr = self._device.application.nwk
         if profile == 260:
-            response = (0x8006, 0, local_addr, [t.uint8_t(1)])
+            response = (CLUSTER_ID.Match_Desc_rsp, 0, local_addr, [t.uint8_t(1)])
         else:
-            response = (0x8006, 0, local_addr, [])
+            response = (CLUSTER_ID.Match_Desc_rsp, 0, local_addr, [])
 
         self.reply(*response)
 
@@ -86,22 +90,22 @@ class ZDO(util.LocalLogMixin, util.ListenableMixin):
         dstaddr = types.MultiAddress()
         dstaddr.addrmode = 3
         dstaddr.ieee = self._device.application.ieee
-        dstaddr.endpoint = endpoint
-        return self.request(0x0021, self._device.ieee, endpoint, cluster, dstaddr)
+        dstaddr.endpoint = 1
+        return self.request(CLUSTER_ID.Bind_req, self._device.ieee, endpoint, cluster, dstaddr)
 
     def unbind(self, endpoint, cluster):
         dstaddr = types.MultiAddress()
         dstaddr.addrmode = 3
         dstaddr.ieee = self._device.application.ieee
         dstaddr.endpoint = endpoint
-        return self.request(0x0022, self._device.ieee, endpoint, cluster, dstaddr)
+        return self.request(CLUSTER_ID.Unbind_req, self._device.ieee, endpoint, cluster, dstaddr)
 
     def leave(self):
         dstaddr = types.MultiAddress()
         dstaddr.addrmode = 3
         dstaddr.ieee = self._device.application.ieee
-        dstaddr.endpoint = 1
-        return self.request(0x0034, self._device.ieee, (1 << 1), dstaddr)
+        dstaddr.endpoint = endpoint
+        return self.request(CLUSTER_ID.Mgmt_Leave_req, self._device.ieee, (1 << 1), dstaddr)
 
     def log(self, lvl, msg, *args):
         msg = '[0x%04x:zdo] ' + msg
