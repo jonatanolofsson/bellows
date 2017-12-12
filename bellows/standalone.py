@@ -27,6 +27,7 @@ class RestServer:
                 '/api/{api_key}': self._get_index,
                 '/api/{api_key}/lights/{id}': self._get_light,
                 '/api/{api_key}/lights/{id}/reinit': self._reinit_light,
+                '/api/{api_key}/sensors/{id}': self._get_sensor,
             },
 
             'PUT': {
@@ -96,6 +97,21 @@ class RestServer:
     @asyncio.coroutine
     def _get_light(self, request):
         log.info('Get light')
+        light_id = int(request.match_info['id'], 16)
+        return dict(answer=42)
+
+    @asyncio.coroutine
+    def _get_sensor(self, request):
+        log.info('Get sensor')
+        sensor_id = int(request.match_info['id'], 16)
+        try:
+            dev = self.app.get_device(nwk=sensor_id)
+            yield from dev[1].on_off.bind()
+            yield from dev[1].on_off.configure_reporting(0, 10, 60, 1)
+        except KeyError:
+            log.info(str([hex(d.nwk) for d in self.app.devices.values()]))
+            raise web.HTTPNotFound()
+
         return dict(answer=42)
 
     @asyncio.coroutine

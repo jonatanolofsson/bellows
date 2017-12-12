@@ -1,6 +1,7 @@
 import enum
 
 import bellows.types as t
+from bellows.zigbee.util import dotdict
 
 
 class Status(t.uint8_t, enum.Enum):
@@ -127,15 +128,15 @@ class TypeValue():
         self = cls()
         self.type, data = data[0], data[1:]
         if self.type in [0x48, 0x50, 0x51]:  # Array, set or bag
-            etype, data = t.basic.uint8_t.deserialize(data)
-            nofel, data = t.basic.uint16_t.deserialize(data)
+            etype, data = t.uint8_t.deserialize(data)
+            nofel, data = t.uint16_t.deserialize(data)
             actual_type = DATA_TYPES[etype][1]
             self.value = []
             for i in range(nofel):
                 val, data = actual_type.deserialize(data)
                 self.value.append(val)
         elif self.type == 0x4c:  # Structure
-            nofel, data = t.basic.uint16_t.deserialize(data)
+            nofel, data = t.uint16_t.deserialize(data)
             self.value = []
             for i in range(nofel):
                 etype, data = t.basic.uint8_t.deserialize(data)
@@ -269,3 +270,5 @@ COMMANDS = {
     # 0x0f: ('Write attributes structured', (, ), False),
     # 0x10: ('Write attributes structured response', (, ), True),
 }
+
+COMMAND_ID = dotdict({value[0].replace(' ', '_'): key for key, value in COMMANDS.items()})

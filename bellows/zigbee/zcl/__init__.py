@@ -283,13 +283,15 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
     def unbind(self):
         return self._endpoint.device.zdo.unbind(self._endpoint.endpoint_id, self.cluster_id)
 
-    def configure_reporting(self, attribute, min_interval, max_interval, reportable_change):
+    def configure_reporting(self, attrid, min_interval, max_interval, reportable_change):
         schema = foundation.COMMANDS[0x06][1]
         cfg = foundation.AttributeReportingConfig()
         cfg.direction = 0
-        cfg.attrid = attribute
+        if isinstance(attrid, str):
+            attrid = self._attridx[attrid]
+        cfg.attrid = attrid
         cfg.datatype = foundation.DATA_TYPE_IDX.get(
-            self.attributes.get(attribute, (None, None))[1],
+            self.attributes.get(attrid, (None, None))[1],
             None)
         cfg.min_interval = min_interval
         cfg.max_interval = max_interval
@@ -350,3 +352,10 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
 
 # Import to populate the registry
 from . import clusters  # noqa: F401, F402
+
+CLUSTER_ID = util.dotdict({c.ep_attribute: c.cluster_id
+                           for m in [clusters.closures, clusters.general, clusters.homeautomation,
+                                     clusters.hvac, clusters.lighting, clusters.lightlink,
+                                     clusters.manufacturer_specific, clusters.measurement,
+                                     clusters.protocol, clusters.security, clusters.smartenergy]
+                           for c in m.__dict__.values() if isinstance(c, type) and issubclass(c, Cluster) and hasattr(c, 'cluster_id')})

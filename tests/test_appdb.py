@@ -7,6 +7,8 @@ import pytest
 import bellows.types as t
 from bellows.zigbee.application import ControllerApplication
 from bellows.zigbee import profiles
+import bellows.zigbee.device
+import bellows.zigbee.endpoint
 
 
 def make_app(database_file):
@@ -33,11 +35,14 @@ def test_database(tmpdir, ieee):
     ep = dev.add_endpoint(2)
     ep.profile_id = 260
     ep.device_type = 0xfffd  # Invalid
+    ep.status = bellows.zigbee.endpoint.Status.INITIALIZED
     clus = ep.add_input_cluster(0)
     ep.add_output_cluster(1)
     ep = dev.add_endpoint(3)
     ep.profile_id = 49246
     ep.device_type = profiles.zll.DeviceType.COLOR_LIGHT
+    ep.status = bellows.zigbee.endpoint.Status.INITIALIZED
+    dev.status = bellows.zigbee.device.Status.INITIALIZED
     app.listener_event('device_initialized', dev)
     clus._update_attribute(0, 99)
     clus.listener_event('cluster_command', 0)

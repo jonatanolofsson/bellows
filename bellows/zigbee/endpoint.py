@@ -6,7 +6,8 @@ import bellows.zigbee.appdb
 import bellows.zigbee.profiles
 import bellows.zigbee.util as zutil
 import bellows.zigbee.zcl
-from bellows.zigbee.zdo.types import CLUSTER_ID
+from bellows.zigbee.zdo import CLUSTER_ID as ZDO_CLUSTER_ID
+from bellows.zigbee.zcl import CLUSTER_ID as ZCL_CLUSTER_ID
 # from bellows.zigbee.profiles.zll import PROFILE_ID as ZLL_PROFILE_ID
 from bellows.zigbee.profiles.zha import PROFILE_ID as ZHA_PROFILE_ID
 from bellows.zigbee.specialization import VENDOR
@@ -46,7 +47,7 @@ class Endpoint(zutil.LocalLogMixin, zutil.ListenableMixin):
         self.info("Discovering endpoint information")
         try:
             sdr = yield from self._device.zdo.request(
-                CLUSTER_ID.Simple_Desc_req,
+                ZDO_CLUSTER_ID.Simple_Desc_req,
                 self._device.nwk,
                 self._endpoint_id,
                 tries=3,
