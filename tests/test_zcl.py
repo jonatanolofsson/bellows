@@ -104,15 +104,15 @@ def test_request_manufacturer(cluster):
 
 
 def test_reply_general(cluster):
-    cluster.reply(0, [])
+    cluster.reply(True, 0, [])
     assert cluster._endpoint.device.reply.call_count == 1
 
 
 def test_reply_manufacturer(cluster):
-    cluster.reply(0, [t.uint8_t], 1)
+    cluster.reply(True, 0, [t.uint8_t], 1)
     assert cluster._endpoint.device.reply.call_count == 1
     org_size = len(cluster._endpoint.device.reply.call_args[0][1])
-    cluster.reply(0, [t.uint8_t], 1, manufacturer=1)
+    cluster.reply(True, 0, [t.uint8_t], 1, manufacturer=1)
     assert cluster._endpoint.device.reply.call_count == 2
     assert org_size + 2 == len(cluster._endpoint.device.reply.call_args[0][1])
 
@@ -139,12 +139,12 @@ def test_handle_unexpected_reply(cluster, aps):
 
 
 def _mk_rar(attrid, value, status=0):
-        r = zcl.foundation.ReadAttributeRecord()
-        r.attrid = attrid
-        r.status = status
-        r.value = zcl.foundation.TypeValue()
-        r.value.value = value
-        return r
+    r = zcl.foundation.ReadAttributeRecord()
+    r.attrid = attrid
+    r.status = status
+    r.value = zcl.foundation.TypeValue()
+    r.value.value = value
+    return r
 
 
 def test_read_attributes_uncached(cluster):

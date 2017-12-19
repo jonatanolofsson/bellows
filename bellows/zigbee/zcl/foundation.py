@@ -112,6 +112,7 @@ DATA_TYPE_IDX = {
     t: tidx
     for tidx, (tname, t, ad) in DATA_TYPES.items()
 }
+DATA_TYPE_IDX[t.uint16_t] = 0x21
 DATA_TYPE_IDX[t.uint32_t] = 0x23
 DATA_TYPE_IDX[t.EmberEUI64] = 0xf0
 DATA_TYPE_IDX[t.Bool] = 0x10
