@@ -272,7 +272,7 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
 
         if is_report:
             schema = foundation.COMMANDS[0x01][1]
-            return self.reply(False, 0x01, schema, args)
+            return self.reply(True, 0x01, schema, args)
         else:
             schema = foundation.COMMANDS[0x02][1]
             return self.request(True, 0x02, schema, args)
@@ -302,7 +302,7 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
 
     def client_command(self, command, *args):
         schema = self.client_commands[command][1]
-        return self.reply(True, command, schema, *args)
+        return self.reply(False, command, schema, *args)
 
     @property
     def name(self):
