@@ -17,8 +17,7 @@ def ep():
 def _test_initialize(ep, profile):
     loop = asyncio.get_event_loop()
 
-    @asyncio.coroutine
-    def mockrequest(req, nwk, epid, tries=None, delay=None):
+    async def mockrequest(req, nwk, epid, tries=None, delay=None):
         sd = types.SimpleDescriptor()
         sd.endpoint = 1
         sd.profile = profile
@@ -46,8 +45,7 @@ def test_initialize_zll(ep):
 def test_initialize_fail(ep):
     loop = asyncio.get_event_loop()
 
-    @asyncio.coroutine
-    def mockrequest(req, nwk, epid, tries=None, delay=None):
+    async def mockrequest(req, nwk, epid, tries=None, delay=None):
         return [1, None, None]
 
     ep._device.zdo.request = mockrequest
@@ -93,17 +91,19 @@ def test_multiple_add_output_cluster(ep):
 
 
 def test_get_aps():
-    app_mock = mock.MagicMock()
-    ieee = t.EmberEUI64(map(t.uint8_t, [0, 1, 2, 3, 4, 5, 6, 7]))
-    dev = device.Device(app_mock, ieee, 65535)
-    ep = endpoint.Endpoint(dev, 55)
-    ep.status = endpoint.Status.INITIALIZED
-    ep.profile_id = 99
-    aps = ep.get_aps(255)
-    assert aps.profileId == 99
-    assert aps.clusterId == 255
-    assert aps.sourceEndpoint == 55
-    assert aps.destinationEndpoint == 55
+    async def inner():
+        app_mock = mock.MagicMock()
+        ieee = t.EmberEUI64(map(t.uint8_t, [0, 1, 2, 3, 4, 5, 6, 7]))
+        dev = device.Device(app_mock, ieee, 65535)
+        ep = endpoint.Endpoint(dev, 55)
+        ep.status = endpoint.Status.INITIALIZED
+        ep.profile_id = 99
+        aps = await ep.get_aps(255)
+        assert aps.profileId == 99
+        assert aps.clusterId == 255
+        assert aps.sourceEndpoint == 55
+        assert aps.destinationEndpoint == 55
+    asyncio.get_event_loop().run_until_complete(inner())
 
 
 def test_handle_message(ep):

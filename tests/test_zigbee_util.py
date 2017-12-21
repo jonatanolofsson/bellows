@@ -12,18 +12,21 @@ class Listenable(util.ListenableMixin):
 
 
 def test_listenable():
-    listen = Listenable()
-    listener = mock.MagicMock()
-    listen.add_listener(listener)
-    listen.add_listener(listener)
+    async def inner():
+        listen = Listenable()
+        listener = mock.MagicMock()
+        listen.add_listener(listener)
+        listen.add_listener(listener)
 
-    broken_listener = mock.MagicMock()
-    broken_listener.event.side_effect = Exception()
-    listen.add_listener(broken_listener)
+        broken_listener = mock.MagicMock()
+        broken_listener.event.side_effect = Exception()
+        listen.add_listener(broken_listener)
 
-    listen.listener_event('event')
-    assert listener.event.call_count == 2
-    assert broken_listener.event.call_count == 1
+        await listen.listener_event('event')
+        assert listener.event.call_count == 2
+        assert broken_listener.event.call_count == 1
+
+    asyncio.get_event_loop().run_until_complete(inner())
 
 
 class Logger(util.LocalLogMixin):
@@ -49,8 +52,7 @@ def test_zha_security_controller():
 def _test_retry(exception, retry_exceptions, n):
     counter = 0
 
-    @asyncio.coroutine
-    def count():
+    async def count():
         nonlocal counter
         counter += 1
         if counter <= n:
@@ -83,8 +85,7 @@ def _test_retryable(exception, retry_exceptions, n, tries=3, delay=0.001):
     counter = 0
 
     @util.retryable(retry_exceptions)
-    @asyncio.coroutine
-    def count(x, y, z):
+    async def count(x, y, z):
         assert x == y == z == 9
         nonlocal counter
         counter += 1

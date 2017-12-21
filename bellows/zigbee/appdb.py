@@ -179,10 +179,10 @@ class PersistingListener:
     def _scan(self, table):
         return self.execute("SELECT * FROM %s" % (table, ))
 
-    def load(self):
+    async def load(self):
         LOGGER.debug("Loading application state from %s", self._database_file)
         for (ieee, nwk, manufacturer) in self._scan("devices"):
-            dev = self._application.add_device(ieee, nwk, manufacturer)
+            dev = await self._application.add_device(ieee, nwk, manufacturer)
             dev.status = bellows.zigbee.device.Status.INITIALIZED
 
         for (ieee, epid, profile_id, device_type) in self._scan("endpoints"):
@@ -211,18 +211,3 @@ class PersistingListener:
             ep = dev.endpoints[endpoint_id]
             clus = ep.in_clusters[cluster]
             clus._attr_cache[attrid] = value
-
-
-class ClusterPersistingListener:
-    def __init__(self, applistener, cluster):
-        self._applistener = applistener
-        self._cluster = cluster
-
-    def attribute_updated(self, attrid, value):
-        self._applistener.attribute_updated(self._cluster, attrid, value)
-
-    def cluster_command(self, *args, **kwargs):
-        pass
-
-    def zdo_command(self, *args, **kwargs):
-        pass

@@ -1,4 +1,3 @@
-import asyncio
 import enum
 import logging
 
@@ -8,7 +7,6 @@ import bellows.zigbee.util as zutil
 import bellows.zigbee.zdo as zdo
 from bellows.zigbee.zdo.types import CLUSTER_ID
 
-
 LOGGER = logging.getLogger(__name__)
 
 
@@ -16,10 +14,12 @@ class Status(enum.IntEnum):
     """The status of a Device"""
     # No initialization done
     NEW = 0
+    # Initialization started
+    INITIALIZING = 10
     # ZDO endpoint discovery done
-    ZDO_INIT = 1
+    ZDO_INIT = 20
     # Endpoints initialized
-    ENDPOINTS_INIT = 2
+    ENDPOINTS_INIT = 30
     # Initialization finished
     INITIALIZED = 100
 
@@ -36,27 +36,15 @@ class Device(zutil.LocalLogMixin):
         self.lqi = None
         self.rssi = None
         self.status = Status.NEW
-        self.initializing = False
         self._manufacturer_code = manufacturer
 
-    def schedule_initialize(self):
-        if self.initializing:
-            LOGGER.debug("Canceling old initialize call")
-            self._init_handle.cancel()
-        else:
-            self.initializing = True
-        loop = asyncio.get_event_loop()
-        self._init_handle = loop.call_soon(asyncio.async, self._initialize())
-
-    @asyncio.coroutine
-    def _discover_endpoints(self):
+    async def _discover_endpoints(self):
         self.info("Discovering endpoints")
         try:
-            epr = yield from self.zdo.request(CLUSTER_ID.Active_EP_req, self.nwk, tries=3, delay=2)
+            epr = await self.zdo.request(CLUSTER_ID.Active_EP_req, self.nwk, tries=3, delay=2)
             if epr[0] != 0:
                 raise Exception("Endpoint request failed: %s", epr)
         except Exception as exc:
-            self.initializing = False
             self.warn("Failed ZDO request during device initialization: %s", exc)
             return
 
@@ -68,13 +56,12 @@ class Device(zutil.LocalLogMixin):
         for endpoint_id in self.endpoints.keys():
             if endpoint_id == 0:  # ZDO
                 continue
-            yield from self.endpoints[endpoint_id].initialize()
+            await self.endpoints[endpoint_id].initialize()
 
-    @asyncio.coroutine
-    def get_manufacturer_code(self):
+    async def get_manufacturer_code(self):
         if self._manufacturer_code is None:
             try:
-                ndr = yield from self.zdo.request(
+                ndr = await self.zdo.request(
                     CLUSTER_ID.Node_Desc_req,
                     self.nwk,
                     tries=3,
@@ -95,17 +82,20 @@ class Device(zutil.LocalLogMixin):
     def manufacturer_code(self):
         return self._manufacturer_code
 
-    @asyncio.coroutine
-    def _initialize(self):
+    async def initialize(self, silent=False):
+        if self.status == Status.INITIALIZING:
+            return
+        self.status = Status.INITIALIZING
         if self.status == Status.NEW:
-            yield from self._discover_endpoints()
+            await self._discover_endpoints()
             self.status = Status.ZDO_INIT
 
         self.status = Status.ENDPOINTS_INIT
-        yield from self.get_manufacturer_code()
+        await self.get_manufacturer_code()
         self.status = Status.INITIALIZED
         self.initializing = False
-        self._application.listener_event('device_initialized', self)
+        if not silent:
+            await self._application.listener_event('device_initialized', self)
 
     def add_endpoint(self, endpoint_id):
         if endpoint_id not in self.endpoints:
@@ -125,32 +115,28 @@ class Device(zutil.LocalLogMixin):
         )
         f.groupId = t.uint16_t(0)
         f.sequence = t.uint8_t(self._application.get_sequence())
+
         return f
 
-    def request(self, aps, data):
-        return self._application.request(self.nwk, aps, data)
+    async def request(self, aps, data):
+        return await self._application.request(self.nwk, aps, data)
 
-    def handle_message(self, is_reply, aps_frame, tsn, command_id, args):
-        asyncio.ensure_future(self.async_handle_message(
-            is_reply, aps_frame, tsn, command_id, args))
-
-    @asyncio.coroutine
-    def async_handle_message(self, is_reply, aps_frame, tsn, command_id, args):
+    async def handle_message(self, is_reply, aps_frame, tsn, command_id, args):
         if aps_frame.destinationEndpoint not in self.endpoints:
             self.warn(
                 "Message on unknown endpoint %s",
                 aps_frame.destinationEndpoint,
             )
             self.add_endpoint(aps_frame.destinationEndpoint)
-            yield from self.endpoints[aps_frame.destinationEndpoint].initialize()
-            self._application.listener_event('device_updated', self)
+            await self.endpoints[aps_frame.destinationEndpoint].initialize()
+            await self._application.listener_event('device_updated', self)
 
         endpoint = self.endpoints[aps_frame.destinationEndpoint]
 
-        return endpoint.handle_message(is_reply, aps_frame, tsn, command_id, args)
+        await endpoint.handle_message(is_reply, aps_frame, tsn, command_id, args)
 
-    def reply(self, aps, data):
-        return self._application.request(self.nwk, aps, data, False)
+    async def reply(self, aps, data):
+        return await self._application.request(self.nwk, aps, data, False)
 
     def radio_details(self, lqi, rssi):
         self.lqi = lqi

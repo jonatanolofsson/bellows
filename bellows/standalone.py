@@ -44,10 +44,10 @@ class RestServer:
     def _rwrap(self, handler_func):
         """Errors are handled and put in json format. """
         @functools.wraps(handler_func)
-        def wrapper(request):
+        async def wrapper(request):
             error_code = None
             try:
-                result = yield from handler_func(request)
+                result = await handler_func(request)
             except web.HTTPClientError as e:
                 log.warning('Http error: %r %r', e.status_code, e.reason,
                             exc_info=True)
@@ -72,13 +72,11 @@ class RestServer:
 
         return wrapper
 
-    @asyncio.coroutine
-    def _get_index(self, request):
+    async def _get_index(self, request):
         log.info('Get config')
         return dict(answer=42)
 
-    @asyncio.coroutine
-    def _reinit_light(self, request):
+    async def _reinit_light(self, request):
         log.info('Reinit light')
         print([hex(d.nwk) for d in self.app.devices.values()])
         try:
@@ -87,38 +85,40 @@ class RestServer:
                 light = self.app.get_device(nwk=light_id)
             except KeyError:
                 raise web.HTTPNotFound()
-            yield from light.refresh_endpoints()
+            await light.refresh_endpoints()
         except json.decoder.JSONDecodeError as err:
             log.info("Invalid json data")
         finally:
             pass
         return dict()
 
-    @asyncio.coroutine
-    def _get_light(self, request):
+    async def _get_light(self, request):
         log.info('Get light')
         light_id = int(request.match_info['id'], 16)
         return dict(answer=42)
 
-    @asyncio.coroutine
-    def _get_sensor(self, request):
+    async def _get_sensor(self, request):
         log.info('Get sensor')
         sensor_id = int(request.match_info['id'], 16)
         try:
             dev = self.app.get_device(nwk=sensor_id)
-            yield from dev[1].on_off.bind()
-            yield from dev[1].on_off.configure_reporting(0, 10, 60, 1)
+            cluster = dev[1].on_off
+            res = await cluster.bind()
+            log.info('Bind response is: %r', res)
+            res = await cluster.write_attributes({'cie_addr': dev.application.ieee})
+            log.info('Attribute write response is: %r', res)
+            res = await cluster.configure_reporting(0, 5 * 60, 6 * 60, '01')
+            log.info('Configure reporting response is: %r', res)
         except KeyError:
             log.info(str([hex(d.nwk) for d in self.app.devices.values()]))
             raise web.HTTPNotFound()
 
         return dict(answer=42)
 
-    @asyncio.coroutine
-    def _put_config(self, request):
+    async def _put_config(self, request):
         log.info('Put config')
         try:
-            data = yield from request.json()
+            data = await request.json()
             if "permitjoin" in data:
                 self.app.permit(int(data["permitjoin"]))
                 log.info('Permitting join for %d seconds.', int(data["permitjoin"]))
@@ -128,8 +128,7 @@ class RestServer:
             pass
         return dict()
 
-    @asyncio.coroutine
-    def _put_light(self, request):
+    async def _put_light(self, request):
         log.info('Put light')
         try:
             light_id = int(request.match_info['id'], 16)
@@ -138,25 +137,24 @@ class RestServer:
             except KeyError:
                 log.info(str([hex(d.nwk) for d in self.app.devices.values()]))
                 raise web.HTTPNotFound()
-            data = yield from request.json()
+            data = await request.json()
             if "on" in data:
                 if data["on"]:
                     log.info('Turn light on')
-                    yield from light[1].on_off.on()
+                    await light[1].on_off.on()
                 else:
                     log.info('Turn light off')
-                    yield from light[1].on_off.off()
+                    await light[1].on_off.off()
         except json.decoder.JSONDecodeError as err:
             log.info("Invalid json data")
         finally:
             pass
         return dict()
 
-    @asyncio.coroutine
-    def start(self):
+    async def start(self):
         """Start."""
         loop = asyncio.get_event_loop()
-        self.srv = yield from loop.create_server(self.wapp.make_handler(),
+        self.srv = await loop.create_server(self.wapp.make_handler(),
                                                  self.host, self.port)
 
     def shutdown(self):
@@ -174,17 +172,15 @@ class WsConnection:
         self.socket = socket
         self.path = path
 
-    @asyncio.coroutine
-    def _handle_message(self, message):
+    async def _handle_message(self, message):
         """Handle message."""
         pass
 
-    @asyncio.coroutine
-    def handle(self):
+    async def handle(self):
         """Handle connection."""
         while True:
-            message = yield from self.socket.recv()
-            yield from self._handle_message(message)
+            message = await self.socket.recv()
+            await self._handle_message(message)
 
 
 class WsServer:
@@ -199,25 +195,22 @@ class WsServer:
         self.srv = None
         self.connected = set()
 
-    @asyncio.coroutine
-    def start(self):
+    async def start(self):
         """Start."""
-        self.srv = yield from websockets.serve(self._handler,
+        self.srv = await websockets.serve(self._handler,
                                                self.host, self.port)
 
-    @asyncio.coroutine
-    def broadcast(self, *args, **kwargs):
+    async def broadcast(self, *args, **kwargs):
         """Write to all sockets."""
         for conn in self.connected:
-            yield from conn.socket.send(*args, **kwargs)
+            await conn.socket.send(*args, **kwargs)
 
-    @asyncio.coroutine
-    def _handler(self, socket, path):
+    async def _handler(self, socket, path):
         """Handle connection."""
         conn = WsConnection(self, socket, path)
         self.connected.add(conn)
         try:
-            yield from conn.handle()
+            await conn.handle()
         finally:
             self.connected.remove(conn)
 
@@ -225,13 +218,12 @@ class WsServer:
         """Shutdown."""
         pass
 
-    def device_initialized(self, device):
+    async def device_initialized(self, device):
         """Handle device initialized."""
-        self.broadcast("OK")
+        await self.broadcast("OK")
 
 
-@asyncio.coroutine
-def start(ctx):
+async def start(ctx):
     """Start websocket server."""
     ctx.obj['wsserver'] = WsServer(ctx.obj['app'],
                                    ctx.obj['wshost'],
@@ -240,9 +232,9 @@ def start(ctx):
                                        ctx.obj['resthost'],
                                        ctx.obj['restport'],
                                        ctx.obj['rest_api_key'])
-    yield from ctx.obj['wsserver'].start()
-    yield from ctx.obj['restserver'].start()
-    yield from ctx.obj['app'].startup(auto_form=True)
+    await ctx.obj['wsserver'].start()
+    await ctx.obj['restserver'].start()
+    await ctx.obj['app'].startup(auto_form=True)
 
 
 def shutdown(ctx):

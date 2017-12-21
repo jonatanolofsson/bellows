@@ -148,8 +148,7 @@ def _mk_rar(attrid, value, status=0):
 
 
 def test_read_attributes_uncached(cluster):
-    @asyncio.coroutine
-    def mockrequest(foundation, command, schema, args, manufacturer=None):
+    async def mockrequest(foundation, command, schema, args, manufacturer=None):
         assert foundation is True
         assert command == 0
         rar0 = _mk_rar(0, 99)
@@ -182,8 +181,7 @@ def test_read_attributes_cached(cluster):
 
 
 def test_read_attributes_mixed_cached(cluster):
-    @asyncio.coroutine
-    def mockrequest(foundation, command, schema, args, manufacturer=None):
+    async def mockrequest(foundation, command, schema, args, manufacturer=None):
         assert foundation is True
         assert command == 0
         rar5 = _mk_rar(5, b'Model')
@@ -204,8 +202,7 @@ def test_read_attributes_mixed_cached(cluster):
 
 
 def test_read_attributes_default_response(cluster):
-    @asyncio.coroutine
-    def mockrequest(foundation, command, schema, args, manufacturer=None):
+    async def mockrequest(foundation, command, schema, args, manufacturer=None):
         assert foundation is True
         assert command == 0
         return [0xc1]
@@ -221,8 +218,7 @@ def test_read_attributes_default_response(cluster):
 
 
 def test_item_access_attributes(cluster):
-    @asyncio.coroutine
-    def mockrequest(foundation, command, schema, args, manufacturer=None):
+    async def mockrequest(foundation, command, schema, args, manufacturer=None):
         assert foundation is True
         assert command == 0
         rar5 = _mk_rar(5, b'Model')
@@ -231,14 +227,13 @@ def test_item_access_attributes(cluster):
     cluster.request = mockrequest
     cluster._attr_cache[0] = 99
 
-    @asyncio.coroutine
-    def inner():
-        v = yield from cluster['model']
+    async def inner():
+        v = await cluster['model']
         assert v == b'Model'
-        v = yield from cluster['zcl_version']
+        v = await cluster['zcl_version']
         assert v == 99
         with pytest.raises(KeyError):
-            v = yield from cluster[99]
+            v = await cluster[99]
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(inner())

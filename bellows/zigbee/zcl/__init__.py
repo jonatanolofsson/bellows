@@ -113,7 +113,7 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
         return c
 
     @util.retryable_request
-    def request(self, general, command_id, schema, *args, manufacturer=None):
+    async def request(self, general, command_id, schema, *args, manufacturer=None):
         if len(schema) != len(args):
             self.error("Schema and args lengths do not match in request")
             error = asyncio.Future()
@@ -133,9 +133,9 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
         data = bytes([frame_control]) + manufacturer + bytes([aps.sequence, command_id])
         data += t.serialize(args, schema)
 
-        return self._endpoint.device.request(aps, data)
+        return await self._endpoint.device.request(aps, data)
 
-    def reply(self, general, command_id, schema, *args, manufacturer=None):
+    async def reply(self, command_id, schema, *args, manufacturer=None):
         if len(schema) != len(args):
             self.error("Schema and args lengths do not match in reply")
             error = asyncio.Future()
@@ -156,19 +156,19 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
 
         return asyncio.ensure_future(self._endpoint.device.reply(aps, data))
 
-    def handle_message(self, is_reply, aps_frame, tsn, command_id, args):
+    async def handle_message(self, is_reply, aps_frame, tsn, command_id, args):
         if is_reply:
             self.debug("Unexpected ZCL reply 0x%04x: %s", command_id, args)
             return
 
         self.debug("ZCL request 0x%04x: %s", command_id, args)
         if command_id <= 0xff:
-            self.listener_event('zdo_command', aps_frame, tsn, command_id, args)
+            await self.listener_event('zdo_command', aps_frame, tsn, command_id, args)
         else:
             # Unencapsulate bad hack
             command_id -= 256
-            self.listener_event('cluster_command', aps_frame, tsn, command_id, args)
-            self.handle_cluster_request(aps_frame, tsn, command_id, args)
+            await self.listener_event('cluster_command', aps_frame, tsn, command_id, args)
+            await self.handle_cluster_request(aps_frame, tsn, command_id, args)
             return
 
         if command_id == 0x0a:  # Report attributes
@@ -177,25 +177,23 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
             ])
             self.debug("Attribute report received: %s", valuestr)
             for attr in args[0]:
-                self._update_attribute(attr.attrid, attr.value.value)
+                await self._update_attribute(attr.attrid, attr.value.value)
         else:
-            self.handle_cluster_general_request(aps_frame, tsn, command_id, args)
+            await self.handle_cluster_general_request(aps_frame, tsn, command_id, args)
 
-    def handle_cluster_request(self, aps_frame, tsn, command_id, args):
+    async def handle_cluster_request(self, aps_frame, tsn, command_id, args):
         self.debug("No handler for cluster command %s", command_id)
 
-    def handle_cluster_general_request(self, aps_frame, tsn, command_id, args):
+    async def handle_cluster_general_request(self, aps_frame, tsn, command_id, args):
         self.debug("No handler for general command %s", command_id)
 
-    @asyncio.coroutine
-    def read_attributes_raw(self, attributes, manufacturer=None):
+    async def read_attributes_raw(self, attributes, manufacturer=None):
         schema = foundation.COMMANDS[0x00][1]
         attributes = [t.uint16_t(a) for a in attributes]
-        v = yield from self.request(True, 0x00, schema, attributes, manufacturer=manufacturer)
+        v = await self.request(True, 0x00, schema, attributes, manufacturer=manufacturer)
         return v
 
-    @asyncio.coroutine
-    def read_attributes(self, attributes, allow_cache=False, raw=False, manufacturer=None):
+    async def read_attributes(self, attributes, allow_cache=False, raw=False, manufacturer=None):
         if raw:
             assert len(attributes) == 1
         success, failure = {}, {}
@@ -224,7 +222,7 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
                 return success[attributes[0]]
             return success, failure
 
-        result = yield from self.read_attributes_raw(to_read, manufacturer=manufacturer)
+        result = await self.read_attributes_raw(to_read, manufacturer=manufacturer)
         if not isinstance(result[0], list):
             for attrid in to_read:
                 orig_attribute = orig_attributes[attrid]
@@ -233,7 +231,7 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
             for record in result[0]:
                 orig_attribute = orig_attributes[record.attrid]
                 if record.status == 0:
-                    self._update_attribute(record.attrid, record.value.value)
+                    await self._update_attribute(record.attrid, record.value.value)
                     success[orig_attribute] = record.value.value
                 else:
                     failure[orig_attribute] = record.status
@@ -243,7 +241,7 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
             return success[attributes[0]]
         return success, failure
 
-    def write_attributes(self, attributes, is_report=False):
+    async def write_attributes(self, attributes, is_report=False):
         args = []
         for attrid, value in attributes.items():
             if isinstance(attrid, str):
@@ -264,7 +262,6 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
             try:
                 python_type = self.attributes[attrid][1]
                 a.value.type = t.uint8_t(foundation.DATA_TYPE_IDX[python_type])
-                print(attrid, self.attributes, python_type, a.value.type)
                 a.value.value = python_type(value)
                 args.append(a)
             except ValueError as e:
@@ -272,39 +269,39 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
 
         if is_report:
             schema = foundation.COMMANDS[0x01][1]
-            return self.reply(True, 0x01, schema, args)
+            return await self.reply(0x01, schema, args)
         else:
             schema = foundation.COMMANDS[0x02][1]
-            return self.request(True, 0x02, schema, args)
+            return await self.request(True, 0x02, schema, args)
 
-    def bind(self):
-        return self._endpoint.device.zdo.bind(self._endpoint.endpoint_id, self.cluster_id)
+    async def bind(self):
+        return await self._endpoint.device.zdo.bind(self._endpoint.endpoint_id, self.cluster_id)
 
-    def unbind(self):
-        return self._endpoint.device.zdo.unbind(self._endpoint.endpoint_id, self.cluster_id)
+    async def unbind(self):
+        return await self._endpoint.device.zdo.unbind(self._endpoint.endpoint_id, self.cluster_id)
 
-    def configure_reporting(self, attrid, min_interval, max_interval, reportable_change):
+    async def configure_reporting(self, attribute, min_interval, max_interval, reportable_change):
         schema = foundation.COMMANDS[0x06][1]
         cfg = foundation.AttributeReportingConfig()
         cfg.direction = 0
-        if isinstance(attrid, str):
-            attrid = self._attridx[attrid]
-        cfg.attrid = attrid
+        if isinstance(attribute, str):
+            attribute = self._attridx[attribute]
+        cfg.attrid = attribute
         cfg.datatype = foundation.DATA_TYPE_IDX.get(
-            self.attributes.get(attrid, (None, None))[1],
+            self.attributes.get(attribute, (None, None))[1],
             None)
         cfg.min_interval = min_interval
         cfg.max_interval = max_interval
         cfg.reportable_change = reportable_change
-        return self.request(True, 0x06, schema, [cfg])
+        return await self.request(True, 0x06, schema, [cfg])
 
-    def command(self, command, *args, manufacturer=None):
+    async def command(self, command, *args, manufacturer=None):
         schema = self.server_commands[command][1]
-        return self.request(False, command, schema, *args, manufacturer=manufacturer)
+        return await self.request(False, command, schema, *args, manufacturer=manufacturer)
 
-    def client_command(self, command, *args):
+    async def client_command(self, command, *args):
         schema = self.client_commands[command][1]
-        return self.reply(False, command, schema, *args)
+        return await self.reply(command, schema, *args)
 
     @property
     def name(self):
@@ -318,9 +315,16 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
     def commands(self):
         return list(self._server_command_idx.keys())
 
-    def _update_attribute(self, attrid, value):
+    async def _update_attribute(self, attrid, value):
         self._attr_cache[attrid] = value
-        self.listener_event('attribute_updated', attrid, value)
+        await self._endpoint.device.application.listener_event('attribute_updated', self, attrid, value)
+        await self.listener_event('attribute_updated', self, attrid, value)
+
+    async def update_attribute_local(self, attr, value):
+        if isinstance(attr, str):
+            attr = self._attridx[attr]
+        self.debug("Updating attribute locally: %s = %s", attr, value)
+        await self._update_attribute(attr, value)
 
     def log(self, lvl, msg, *args):
         msg = '[0x%04x:%s:0x%04x] ' + str(msg)

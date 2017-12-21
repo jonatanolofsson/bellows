@@ -13,17 +13,22 @@ LOGGER = logging.getLogger(__name__)
 
 class ListenableMixin:
     def add_listener(self, listener):
+        if listener is None:
+            return None
         id_ = id(listener)
         while id_ in self._listeners:
             id_ += 1
         self._listeners[id_] = listener
         return id_
 
-    def listener_event(self, method_name, *args):
+    async def listener_event(self, method_name, *args):
         for listener in self._listeners.values():
             try:
-                method = getattr(listener, method_name)
-                method(*args)
+                method = getattr(listener, method_name, None)
+                if asyncio.iscoroutinefunction(method):
+                    await method(*args)
+                elif callable(method):
+                    method(*args)
             except Exception as e:
                 LOGGER.warning("Error calling listener.%s: %s", method_name, e)
 
@@ -75,21 +80,20 @@ def zha_security(controller=False):
     return isc
 
 
-@asyncio.coroutine
-def retry(func, retry_exceptions, tries=3, delay=0.1):
+async def retry(func, retry_exceptions, tries=3, delay=0.1):
     """Retry a function in case of exception
 
     Only exceptions in `retry_exceptions` will be retried.
     """
     while True:
         try:
-            r = yield from func()
+            r = await func()
             return r
         except retry_exceptions:
             if tries <= 1:
                 raise
             tries -= 1
-            yield from asyncio.sleep(delay)
+            await asyncio.sleep(delay)
 
 
 def retryable(retry_exceptions, tries=1, delay=0.1):
@@ -102,10 +106,10 @@ def retryable(retry_exceptions, tries=1, delay=0.1):
         nonlocal tries, delay
 
         @functools.wraps(func)
-        def wrapper(*args, tries=tries, delay=delay, **kwargs):
+        async def wrapper(*args, tries=tries, delay=delay, **kwargs):
             if tries <= 1:
-                return func(*args, **kwargs)
-            return retry(
+                return await func(*args, **kwargs)
+            return await retry(
                 functools.partial(func, *args, **kwargs),
                 retry_exceptions,
                 tries=tries,

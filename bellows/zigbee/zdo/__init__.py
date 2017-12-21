@@ -44,17 +44,17 @@ class ZDO(util.LocalLogMixin, util.ListenableMixin):
         return aps, data
 
     @util.retryable_request
-    def request(self, command, *args):
+    async def request(self, command, *args):
         if isinstance(command, str):
             command = CLUSTER_ID[command]
         aps, data = self._serialize(command, *args)
-        return self._device.request(aps, data)
+        return await self._device.request(aps, data)
 
     def reply(self, command, *args):
         aps, data = self._serialize(command, *args)
         return asyncio.ensure_future(self._device.reply(aps, data))
 
-    def handle_message(self, is_reply, aps_frame, tsn, command_id, args):
+    async def handle_message(self, is_reply, aps_frame, tsn, command_id, args):
         if is_reply:
             self.debug("Unexpected ZDO reply 0x%04x: %s", command_id, args)
             return
@@ -69,15 +69,15 @@ class ZDO(util.LocalLogMixin, util.ListenableMixin):
             if args[0] in broadcast or app.nwk == args[0]:
                 self.reply(CLUSTER_ID.IEEE_addr_rsp, 0, app.ieee, app.nwk, 0, 0, [])
         elif command_id == CLUSTER_ID.Match_Desc_req:  # Match_Desc_req
-            self.handle_match_desc(*args)
+            await self.handle_match_desc(*args)
         elif command_id == CLUSTER_ID.Device_annce:
-            self.listener_event('device_announce', self._device)
+            await self.listener_event('device_announce', self._device)
         elif command_id == CLUSTER_ID.Mgmt_Permit_Joining_req:
-            self.listener_event('permit_duration', args[0])
+            await self.listener_event('permit_duration', args[0])
         else:
             self.warn("Unsupported ZDO request 0x%04x", command_id)
 
-    def handle_match_desc(self, addr, profile, in_clusters, out_clusters):
+    async def handle_match_desc(self, addr, profile, in_clusters, out_clusters):
         local_addr = self._device.application.nwk
         if profile == 260:
             response = (CLUSTER_ID.Match_Desc_rsp, 0, local_addr, [t.uint8_t(1)])
@@ -86,26 +86,26 @@ class ZDO(util.LocalLogMixin, util.ListenableMixin):
 
         self.reply(*response)
 
-    def bind(self, endpoint, cluster):
+    async def bind(self, endpoint, cluster):
         dstaddr = types.MultiAddress()
         dstaddr.addrmode = 3
         dstaddr.ieee = self._device.application.ieee
         dstaddr.endpoint = 1
-        return self.request(CLUSTER_ID.Bind_req, self._device.ieee, endpoint, cluster, dstaddr)
+        return await self.request(CLUSTER_ID.Bind_req, self._device.ieee, endpoint, cluster, dstaddr)
 
-    def unbind(self, endpoint, cluster):
+    async def unbind(self, endpoint, cluster):
         dstaddr = types.MultiAddress()
         dstaddr.addrmode = 3
         dstaddr.ieee = self._device.application.ieee
         dstaddr.endpoint = endpoint
-        return self.request(CLUSTER_ID.Unbind_req, self._device.ieee, endpoint, cluster, dstaddr)
+        return await self.request(CLUSTER_ID.Unbind_req, self._device.ieee, endpoint, cluster, dstaddr)
 
-    def leave(self):
+    async def leave(self):
         dstaddr = types.MultiAddress()
         dstaddr.addrmode = 3
         dstaddr.ieee = self._device.application.ieee
         dstaddr.endpoint = endpoint
-        return self.request(CLUSTER_ID.Mgmt_Leave_req, self._device.ieee, (1 << 1), dstaddr)
+        return await self.request(CLUSTER_ID.Mgmt_Leave_req, self._device.ieee, (1 << 1), dstaddr)
 
     def log(self, lvl, msg, *args):
         msg = '[0x%04x:zdo] ' + msg
