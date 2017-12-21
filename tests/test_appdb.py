@@ -37,8 +37,8 @@ def test_database(tmpdir, ieee):
         ep.profile_id = 260
         ep.device_type = 0xfffd  # Invalid
         ep.status = bellows.zigbee.endpoint.Status.INITIALIZED
-        clus = ep.add_input_cluster(0)
-        ep.add_output_cluster(1)
+        clus = ep.add_cluster(0, True)
+        ep.add_cluster(1, False)
         ep = dev.add_endpoint(3)
         ep.profile_id = 49246
         ep.device_type = profiles.zll.DeviceType.COLOR_LIGHT
@@ -46,8 +46,6 @@ def test_database(tmpdir, ieee):
         dev.status = bellows.zigbee.device.Status.INITIALIZED
         await app.listener_event('device_initialized', dev)
         clus._update_attribute(0, 99)
-        await clus.listener_event('cluster_command', 0)
-        await clus.listener_event('zdo_command')
 
         # Everything should've been saved - check that it re-loads
         app2 = make_app(db)

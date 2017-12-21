@@ -63,39 +63,24 @@ class Endpoint(zutil.LocalLogMixin, zutil.ListenableMixin):
             pass
 
         for cluster in sd.input_clusters:
-            self.add_input_cluster(cluster)
+            self.add_cluster(cluster, True)
         for cluster in sd.output_clusters:
-            self.add_output_cluster(cluster)
+            self.add_cluster(cluster, False)
 
         self.status = Status.INITIALIZED
 
-    def add_input_cluster(self, cluster_id):
-        """Adds an endpoint's input cluster
+    def add_cluster(self, cluster_id, is_input):
+        """Adds an endpoint's cluster
 
         (a server cluster supported by the device)
         """
-        if cluster_id in self.in_clusters:
-            return self.in_clusters[cluster_id]
+        clusters = self.in_clusters if is_input else self.out_clusters
+        if cluster_id in clusters:
+            return clusters[cluster_id]
 
         cluster = bellows.zigbee.zcl.Cluster.from_id(self, cluster_id)
-        self.in_clusters[cluster_id] = cluster
-        if hasattr(cluster, 'ep_attribute'):
-            self._cluster_attr[cluster.ep_attribute] = cluster
-
-        cluster.add_listener(self._device.application._dblistener)
-
-        return cluster
-
-    def add_output_cluster(self, cluster_id):
-        """Adds an endpoint's output cluster
-
-        (a client cluster supported by the device)
-        """
-        if cluster_id in self.out_clusters:
-            return self.out_clusters[cluster_id]
-
-        cluster = bellows.zigbee.zcl.Cluster.from_id(self, cluster_id)
-        self.out_clusters[cluster_id] = cluster
+        cluster.is_input = is_input
+        clusters[cluster_id] = cluster
 
         if hasattr(cluster, 'ep_attribute'):
             self._cluster_attr[cluster.ep_attribute] = cluster
@@ -121,7 +106,7 @@ class Endpoint(zutil.LocalLogMixin, zutil.ListenableMixin):
             self.warn("Message on unknown cluster 0x%04x (0x%04x: %s)", aps_frame.clusterId, self._device.nwk, self._endpoint_id)
             await self.listener_event("unknown_cluster_message", is_reply,
                                       command_id, args)
-            self.add_input_cluster(aps_frame.clusterId)
+            self.add_cluster(aps_frame.clusterId, True)
             await self._device._application.listener_event('device_updated', self.device)
             handler = self.in_clusters[aps_frame.clusterId].handle_message
 
@@ -143,7 +128,7 @@ class Endpoint(zutil.LocalLogMixin, zutil.ListenableMixin):
     def __getattr__(self, name):
         try:
             if name not in self._cluster_attr:
-                self.add_input_cluster(ZCL_CLUSTER_ID[name])
+                self.add_cluster(ZCL_CLUSTER_ID[name], True)
             return self._cluster_attr[name]
         except KeyError:
             raise AttributeError

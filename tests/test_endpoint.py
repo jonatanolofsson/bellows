@@ -63,30 +63,30 @@ def test_reinitialize(ep):
 
 
 def test_add_input_cluster(ep):
-    ep.add_input_cluster(0)
+    ep.add_cluster(0, True)
     assert 0 in ep.in_clusters
 
 
 def test_add_output_cluster(ep):
-    ep.add_output_cluster(0)
+    ep.add_cluster(0, False)
     assert 0 in ep.out_clusters
 
 
 def test_multiple_add_input_cluster(ep):
-    ep.add_input_cluster(0)
+    ep.add_cluster(0, True)
     assert ep.in_clusters[0].cluster_id is 0
     ep.in_clusters[0].cluster_id = 1
     assert ep.in_clusters[0].cluster_id is 1
-    ep.add_input_cluster(0)
+    ep.add_cluster(0, True)
     assert ep.in_clusters[0].cluster_id is 1
 
 
 def test_multiple_add_output_cluster(ep):
-    ep.add_output_cluster(0)
+    ep.add_cluster(0, False)
     assert ep.out_clusters[0].cluster_id is 0
     ep.out_clusters[0].cluster_id = 1
     assert ep.out_clusters[0].cluster_id is 1
-    ep.add_output_cluster(0)
+    ep.add_cluster(0, False)
     assert ep.out_clusters[0].cluster_id is 1
 
 
@@ -107,7 +107,7 @@ def test_get_aps():
 
 
 def test_handle_message(ep):
-    c = ep.add_input_cluster(0)
+    c = ep.add_cluster(0, True)
     c.handle_message = mock.MagicMock()
     f = t.EmberApsFrame()
     f.clusterId = 0
@@ -116,7 +116,7 @@ def test_handle_message(ep):
 
 
 def test_handle_message_output(ep):
-    c = ep.add_output_cluster(0)
+    c = ep.add_cluster(0, False)
     c.handle_message = mock.MagicMock()
     f = t.EmberApsFrame()
     f.clusterId = 0
@@ -133,5 +133,5 @@ def test_handle_request_unknown(ep):
 def test_cluster_attr(ep):
     with pytest.raises(AttributeError):
         ep.basic
-    ep.add_input_cluster(0)
+    ep.add_cluster(0, True)
     ep.basic

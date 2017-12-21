@@ -31,7 +31,6 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         if database_file is not None:
             self._dblistener = bellows.zigbee.appdb.PersistingListener(database_file, self)
             self.add_listener(self._dblistener)
-        self.add_listener(bellows.zigbee.specialization.SpecializationListener())
 
     async def initialize(self):
         """Perform basic NCP initialization steps"""
@@ -183,7 +182,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
 
     async def _handle_frame(self, message_type, aps_frame, lqi, rssi, sender, binding_index, address_index, message):
         try:
-            await self.get_device(nwk=sender).radio_details(lqi, rssi)
+            (await self.get_device(nwk=sender)).radio_details(lqi, rssi)
         except KeyError:
             LOGGER.debug("No such device %s", sender)
 

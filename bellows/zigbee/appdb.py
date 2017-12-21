@@ -31,8 +31,7 @@ class PersistingListener:
 
         self._create_table_devices()
         self._create_table_endpoints()
-        self._create_table_input_clusters()
-        self._create_table_output_clusters()
+        self._create_table_clusters()
         self._create_table_cluster_attributes()
 
         self._application = application
@@ -56,6 +55,8 @@ class PersistingListener:
         self._remove_device(device)
 
     def attribute_updated(self, cluster, attrid, value):
+        if not cluster.is_input:
+            return
         self._save_attribute(
             cluster.endpoint.device.ieee,
             cluster.endpoint.endpoint_id,
@@ -83,20 +84,12 @@ class PersistingListener:
         )
         self._create_index("endpoint_idx", "endpoints", "ieee, endpoint_id")
 
-    def _create_table_input_clusters(self):
-        self._create_table("input_clusters", "(ieee ieee, endpoint_id INTEGER, cluster INTEGER)")
+    def _create_table_clusters(self):
+        self._create_table("clusters", "(ieee ieee, endpoint_id INTEGER, cluster INTEGER, is_input INTEGER)")
         self._create_index(
             "cluster_idx",
-            "input_clusters",
-            "ieee, endpoint_id, cluster",
-        )
-
-    def _create_table_output_clusters(self):
-        self._create_table("output_clusters", "(ieee ieee, endpoint_id INTEGER, cluster INTEGER)")
-        self._create_index(
-            "output_cluster_idx",
-            "output_clusters",
-            "ieee, endpoint_id, cluster",
+            "clusters",
+            "ieee, endpoint_id, cluster, is_input",
         )
 
     def _create_table_cluster_attributes(self):
@@ -112,8 +105,7 @@ class PersistingListener:
 
     def _remove_device(self, device):
         self.execute("DELETE FROM cluster_attributes WHERE ieee = ?", (device.ieee, ))
-        self.execute("DELETE FROM input_clusters WHERE ieee = ?", (device.ieee, ))
-        self.execute("DELETE FROM output_clusters WHERE ieee = ?", (device.ieee, ))
+        self.execute("DELETE FROM clusters WHERE ieee = ?", (device.ieee, ))
         self.execute("DELETE FROM endpoints WHERE ieee = ?", (device.ieee, ))
         self.execute("DELETE FROM devices WHERE ieee = ?", (device.ieee, ))
         self._db.commit()
@@ -128,8 +120,7 @@ class PersistingListener:
             if epid == 0:
                 # ZDO
                 continue
-            self._save_input_clusters(ep)
-            self._save_output_clusters(ep)
+            self._save_clusters(ep)
         self._db.commit()
 
     def _save_endpoints(self, device):
@@ -151,21 +142,15 @@ class PersistingListener:
         self._cursor.executemany(q, endpoints)
         self._db.commit()
 
-    def _save_input_clusters(self, endpoint):
-        self.execute("DELETE FROM input_clusters WHERE ieee = ?", (endpoint.device.ieee, ))
-        q = "INSERT OR REPLACE INTO input_clusters VALUES (?, ?, ?)"
+    def _save_clusters(self, endpoint):
+        self.execute("DELETE FROM clusters WHERE ieee = ?", (endpoint.device.ieee, ))
+        q = "INSERT OR REPLACE INTO clusters VALUES (?, ?, ?, ?)"
         clusters = [
-            (endpoint.device.ieee, endpoint.endpoint_id, cluster.cluster_id)
+            (endpoint.device.ieee, endpoint.endpoint_id, cluster.cluster_id, cluster.is_input)
             for cluster in endpoint.in_clusters.values()
         ]
-        self._cursor.executemany(q, clusters)
-        self._db.commit()
-
-    def _save_output_clusters(self, endpoint):
-        self.execute("DELETE FROM output_clusters WHERE ieee = ?", (endpoint.device.ieee, ))
-        q = "INSERT OR REPLACE INTO output_clusters VALUES (?, ?, ?)"
-        clusters = [
-            (endpoint.device.ieee, endpoint.endpoint_id, cluster.cluster_id)
+        clusters += [
+            (endpoint.device.ieee, endpoint.endpoint_id, cluster.cluster_id, cluster.is_input)
             for cluster in endpoint.out_clusters.values()
         ]
         self._cursor.executemany(q, clusters)
@@ -186,7 +171,7 @@ class PersistingListener:
             dev.status = bellows.zigbee.device.Status.INITIALIZED
 
         for (ieee, epid, profile_id, device_type) in self._scan("endpoints"):
-            dev = self._application.get_device(ieee)
+            dev = await self._application.get_device(ieee)
             ep = dev.add_endpoint(epid)
             ep.profile_id = profile_id
             try:
@@ -196,18 +181,15 @@ class PersistingListener:
             ep.device_type = device_type
             ep.status = bellows.zigbee.endpoint.Status.INITIALIZED
 
-        for (ieee, endpoint_id, cluster) in self._scan("input_clusters"):
-            dev = self._application.get_device(ieee)
+        for (ieee, endpoint_id, cluster, is_input) in self._scan("clusters"):
+            dev = await self._application.get_device(ieee)
             ep = dev.endpoints[endpoint_id]
-            ep.add_input_cluster(cluster)
-
-        for (ieee, endpoint_id, cluster) in self._scan("output_clusters"):
-            dev = self._application.get_device(ieee)
-            ep = dev.endpoints[endpoint_id]
-            ep.add_output_cluster(cluster)
+            ep.add_cluster(cluster, bool(is_input))
 
         for (ieee, endpoint_id, cluster, attrid, value) in self._scan("cluster_attributes"):
-            dev = self._application.get_device(ieee)
+            dev = await self._application.get_device(ieee)
             ep = dev.endpoints[endpoint_id]
+            if cluster not in ep.in_clusters:
+                ep.add_cluster(cluster, True)
             clus = ep.in_clusters[cluster]
             clus._attr_cache[attrid] = value

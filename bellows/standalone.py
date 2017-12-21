@@ -82,7 +82,7 @@ class RestServer:
         try:
             light_id = int(request.match_info['id'], 16)
             try:
-                light = self.app.get_device(nwk=light_id)
+                light = await self.app.get_device(nwk=light_id)
             except KeyError:
                 raise web.HTTPNotFound()
             await light.refresh_endpoints()
@@ -101,7 +101,7 @@ class RestServer:
         log.info('Get sensor')
         sensor_id = int(request.match_info['id'], 16)
         try:
-            dev = self.app.get_device(nwk=sensor_id)
+            dev = await self.app.get_device(nwk=sensor_id)
             cluster = dev[1].on_off
             res = await cluster.bind()
             log.info('Bind response is: %r', res)
