@@ -84,7 +84,7 @@ class Registry(type):
                 cls._client_command_idx[command_name] = command_id
 
 
-class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
+class Cluster(util.LocalLogMixin, metaclass=Registry):
     """A cluster on an endpoint"""
     _registry = {}
     _registry_range = {}
@@ -93,8 +93,8 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
 
     def __init__(self, endpoint):
         self._endpoint = endpoint
+        self.is_input = None
         self._attr_cache = {}
-        self._listeners = {}
 
     @classmethod
     def from_id(cls, endpoint, cluster_id):
@@ -135,7 +135,7 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
 
         return await self._endpoint.device.request(aps, data)
 
-    async def reply(self, command_id, schema, *args, manufacturer=None):
+    async def reply(self, general, command_id, schema, *args, manufacturer=None):
         if len(schema) != len(args):
             self.error("Schema and args lengths do not match in reply")
             error = asyncio.Future()
@@ -163,11 +163,11 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
 
         self.debug("ZCL request 0x%04x: %s", command_id, args)
         if command_id <= 0xff:
-            await self.listener_event('zdo_command', aps_frame, tsn, command_id, args)
+            await self._endpoint.device.application.listener_event('zdo_command', self, aps_frame, tsn, command_id, args)
         else:
             # Unencapsulate bad hack
             command_id -= 256
-            await self.listener_event('cluster_command', aps_frame, tsn, command_id, args)
+            await self._endpoint.device.application.listener_event('cluster_command', self, aps_frame, tsn, command_id, args)
             await self.handle_cluster_request(aps_frame, tsn, command_id, args)
             return
 
@@ -318,7 +318,6 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
     async def _update_attribute(self, attrid, value):
         self._attr_cache[attrid] = value
         await self._endpoint.device.application.listener_event('attribute_updated', self, attrid, value)
-        await self.listener_event('attribute_updated', self, attrid, value)
 
     async def update_attribute_local(self, attr, value):
         if isinstance(attr, str):
