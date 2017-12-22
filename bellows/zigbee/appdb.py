@@ -125,7 +125,7 @@ class PersistingListener:
         self._db.commit()
 
     def _save_endpoints(self, device):
-        self.execute("DELETE FROM endpoints WHERE ieee = ?", (device.ieee, ))
+        # self.execute("DELETE FROM endpoints WHERE ieee = ?", (device.ieee, ))
         q = "INSERT OR REPLACE INTO endpoints VALUES (?, ?, ?, ?)"
         endpoints = []
         for epid, ep in device.endpoints.items():
@@ -144,7 +144,7 @@ class PersistingListener:
         self._db.commit()
 
     def _save_clusters(self, endpoint):
-        self.execute("DELETE FROM clusters WHERE ieee = ? AND endpoint_id = ?", (endpoint.device.ieee, endpoint.endpoint_id))
+        # self.execute("DELETE FROM clusters WHERE ieee = ? AND endpoint_id = ?", (endpoint.device.ieee, endpoint.endpoint_id))
         q = "INSERT OR REPLACE INTO clusters VALUES (?, ?, ?, ?)"
         clusters = [
             (endpoint.device.ieee, endpoint.endpoint_id, cluster.cluster_id, cluster.is_input)
