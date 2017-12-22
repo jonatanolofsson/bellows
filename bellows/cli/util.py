@@ -65,10 +65,10 @@ def app(f, app_startup=True, run_forever=False, shutdown_cb=None):
             pass
 
     @functools.wraps(f)
-    def inner(*args, **kwargs):
+    def inner(ctx, *args, **kwargs):
         loop = asyncio.get_event_loop()
         try:
-            loop.run_until_complete(async_inner(*args, **kwargs))
+            loop.run_until_complete(async_inner(ctx, *args, **kwargs))
             if run_forever:
                 loop.run_forever()
         except:  # noqa: E722

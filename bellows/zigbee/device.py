@@ -37,6 +37,7 @@ class Device(zutil.LocalLogMixin):
         self.rssi = None
         self.status = Status.NEW
         self._manufacturer_code = manufacturer
+        self._application.add_listener(self)
 
     async def _discover_endpoints(self):
         self.info("Discovering endpoints")
@@ -83,7 +84,7 @@ class Device(zutil.LocalLogMixin):
         return self._manufacturer_code
 
     async def initialize(self, silent=False):
-        if self.status == Status.INITIALIZING:
+        if self.status > Status.NEW:
             return
         self.status = Status.INITIALIZING
         if self.status == Status.NEW:
@@ -93,7 +94,6 @@ class Device(zutil.LocalLogMixin):
         self.status = Status.ENDPOINTS_INIT
         await self.get_manufacturer_code()
         self.status = Status.INITIALIZED
-        self.initializing = False
         if not silent:
             await self._application.listener_event('device_initialized', self)
 

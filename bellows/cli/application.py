@@ -31,6 +31,7 @@ def form(ctx, database, channel, pan_id, extended_pan_id):
 
     return util.app(inner, app_startup=False)(ctx)
 
+
 @main.command()
 @opts.database_file
 @opts.wshost

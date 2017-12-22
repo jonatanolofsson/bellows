@@ -26,7 +26,7 @@ def test_initialize(monkeypatch, dev):
     monkeypatch.setattr(endpoint.Endpoint, 'initialize', mockepinit)
 
     dev.zdo.request = mockrequest
-    loop.run_until_complete(dev._initialize())
+    loop.run_until_complete(dev.initialize())
 
     assert dev.status > device.Status.NEW
     assert 1 in dev.endpoints
@@ -40,7 +40,7 @@ def test_initialize_fail(dev):
         return [1]
 
     dev.zdo.request = mockrequest
-    loop.run_until_complete(dev._initialize())
+    loop.run_until_complete(dev.initialize())
 
     assert dev.status == device.Status.NEW
 
@@ -54,11 +54,13 @@ def test_aps(dev):
 
 
 def test_request(dev):
-    aps = dev.get_aps(1, 2, 3)
-    dev.request(aps, b'')
-    app_mock = dev._application
-    assert app_mock.request.call_count == 1
-    assert app_mock.get_sequence.call_count == 1
+    async def inner():
+        aps = dev.get_aps(1, 2, 3)
+        await dev.request(aps, b'')
+        app_mock = dev._application
+        assert app_mock.request.call_count == 1
+        assert app_mock.get_sequence.call_count == 1
+    asyncio.get_event_loop().run_until_complete(inner())
 
 
 def test_radio_details(dev):

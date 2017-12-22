@@ -156,5 +156,5 @@ def test_fail_convert_install_code():
 
 
 def test_dotdict():
-    dm = util.dotdict({'asdf': 'ert'})
+    dm = util.Dotdict({'asdf': 'ert'})
     assert dm.asdf == 'ert'

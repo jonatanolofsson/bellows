@@ -1,5 +1,6 @@
 import asyncio
 from unittest import mock
+import util
 
 import pytest
 import bellows.types as t
@@ -50,6 +51,8 @@ def _test_startup(app, nwk_type, auto_form=False, init=0):
     app._ezsp.getNodeId = mockezsp
     app._ezsp.getEui64 = mockezsp
     app._ezsp.leaveNetwork = mockezsp
+    app._ezsp.reset = mockezsp
+    app._ezsp.version = mockezsp
     app.form_network = mock.MagicMock()
 
     loop = asyncio.get_event_loop()
@@ -87,8 +90,9 @@ def test_form_network(app):
     loop.run_until_complete(app.form_network())
 
 
-def _frame_handler(app, aps, ieee, endpoint, cluster=0, sender=3):
-    app.add_device(ieee, 3)
+@util.async
+async def _frame_handler(app, aps, ieee, endpoint, cluster=0, sender=3):
+    await app.add_device(ieee, 3)
     app._ieee = [t.uint8_t(0)] * 8
     app._nwk = 0
     aps.destinationEndpoint = endpoint
@@ -210,16 +214,22 @@ def test_join_handler(app, ieee):
     assert ieee in app.devices
 
 
-def test_join_handler_skip(app, ieee):
-    app._handle_join(1, ieee, None, None, None)
+@util.async
+async def test_join_handler_skip(app, ieee):
+    app._joining[1] = None
+    await app._handle_join(1, ieee, None, None, None)
     app.devices[ieee].status = device.Status.INITIALIZED
-    app._handle_join(1, ieee, None, None, None)
+    app._joining[1] = None
+    await app._handle_join(1, ieee, None, None, None)
     assert app.devices[ieee].status == device.Status.INITIALIZED
 
 
-def test_join_handler_change_id(app, ieee):
-    app._handle_join(1, ieee, None, None, None)
-    app._handle_join(2, ieee, None, None, None)
+@util.async
+async def test_join_handler_change_id(app, ieee):
+    app._joining[1] = None
+    app._joining[2] = None
+    await app._handle_join(1, ieee, None, None, None)
+    await app._handle_join(2, ieee, None, None, None)
     assert app.devices[ieee].nwk == 2
 
 
@@ -252,25 +262,29 @@ def test_sequence(app):
         assert seq < 256
 
 
-def test_add_device(app, ieee):
-    app.add_device(ieee, 8)
-    app.add_device(ieee, 9)
-    assert app.get_device(ieee).nwk == 9
+@util.async
+async def test_add_device(app, ieee):
+    await app.add_device(ieee, 8)
+    await app.add_device(ieee, 9)
+    assert (await app.get_device(ieee)).nwk == 9
 
 
-def test_get_device_nwk(app, ieee):
-    dev = app.add_device(ieee, 8)
-    assert app.get_device(nwk=8) is dev
+@util.async
+async def test_get_device_nwk(app, ieee):
+    dev = await app.add_device(ieee, 8)
+    assert await app.get_device(nwk=8) is dev
 
 
-def test_get_device_ieee(app, ieee):
-    dev = app.add_device(ieee, 8)
-    assert app.get_device(ieee=ieee) is dev
+@util.async
+async def test_get_device_ieee(app, ieee):
+    dev = await app.add_device(ieee, 8)
+    assert await app.get_device(ieee=ieee) is dev
 
 
-def test_get_device_both(app, ieee):
-    dev = app.add_device(ieee, 8)
-    assert app.get_device(ieee=ieee, nwk=8) is dev
+@util.async
+async def test_get_device_both(app, ieee):
+    dev = await app.add_device(ieee, 8)
+    assert await app.get_device(ieee=ieee, nwk=8) is dev
 
 
 def test_permit(app):

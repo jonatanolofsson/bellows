@@ -1,4 +1,5 @@
 import asyncio
+import util
 from unittest import mock
 
 import pytest
@@ -91,47 +92,47 @@ def test_multiple_add_output_cluster(ep):
 
 
 def test_get_aps():
-    async def inner():
-        app_mock = mock.MagicMock()
-        ieee = t.EmberEUI64(map(t.uint8_t, [0, 1, 2, 3, 4, 5, 6, 7]))
-        dev = device.Device(app_mock, ieee, 65535)
-        ep = endpoint.Endpoint(dev, 55)
-        ep.status = endpoint.Status.INITIALIZED
-        ep.profile_id = 99
-        aps = await ep.get_aps(255)
-        assert aps.profileId == 99
-        assert aps.clusterId == 255
-        assert aps.sourceEndpoint == 55
-        assert aps.destinationEndpoint == 55
-    asyncio.get_event_loop().run_until_complete(inner())
+    app_mock = mock.MagicMock()
+    ieee = t.EmberEUI64(map(t.uint8_t, [0, 1, 2, 3, 4, 5, 6, 7]))
+    dev = device.Device(app_mock, ieee, 65535)
+    ep = endpoint.Endpoint(dev, 55)
+    ep.status = endpoint.Status.INITIALIZED
+    ep.profile_id = 99
+    aps = ep.get_aps(255)
+    assert aps.profileId == 99
+    assert aps.clusterId == 255
+    assert aps.sourceEndpoint == 55
+    assert aps.destinationEndpoint == 55
 
 
-def test_handle_message(ep):
+@util.async
+async def test_handle_message(ep):
     c = ep.add_cluster(0, True)
     c.handle_message = mock.MagicMock()
     f = t.EmberApsFrame()
     f.clusterId = 0
-    ep.handle_message(False, f, 0, 1, [])
+    await ep.handle_message(False, f, 0, 1, [])
     c.handle_message.assert_called_once_with(False, f, 0, 1, [])
 
 
-def test_handle_message_output(ep):
+@util.async
+async def test_handle_message_output(ep):
     c = ep.add_cluster(0, False)
     c.handle_message = mock.MagicMock()
     f = t.EmberApsFrame()
     f.clusterId = 0
-    ep.handle_message(False, f, 0, 1, [])
+    await ep.handle_message(False, f, 0, 1, [])
     c.handle_message.assert_called_once_with(False, f, 0, 1, [])
 
 
-def test_handle_request_unknown(ep):
+@util.async
+async def test_handle_request_unknown(ep):
     f = t.EmberApsFrame()
     f.clusterId = 99
-    ep.handle_message(False, f, 0, 0, [])
+    await ep.handle_message(False, f, 0, 0, [])
 
 
 def test_cluster_attr(ep):
-    with pytest.raises(AttributeError):
-        ep.basic
-    ep.add_cluster(0, True)
+    assert 0 not in ep.in_clusters
     ep.basic
+    assert 0 in ep.in_clusters

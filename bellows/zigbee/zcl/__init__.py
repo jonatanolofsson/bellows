@@ -269,7 +269,7 @@ class Cluster(util.LocalLogMixin, metaclass=Registry):
 
         if is_report:
             schema = foundation.COMMANDS[0x01][1]
-            return await self.reply(0x01, schema, args)
+            return await self.reply(False, 0x01, schema, args)
         else:
             schema = foundation.COMMANDS[0x02][1]
             return await self.request(True, 0x02, schema, args)
@@ -301,7 +301,7 @@ class Cluster(util.LocalLogMixin, metaclass=Registry):
 
     async def client_command(self, command, *args):
         schema = self.client_commands[command][1]
-        return await self.reply(command, schema, *args)
+        return await self.reply(True, command, schema, *args)
 
     @property
     def name(self):
@@ -356,7 +356,7 @@ class Cluster(util.LocalLogMixin, metaclass=Registry):
 # Import to populate the registry
 from . import clusters  # noqa: F401, F402
 
-CLUSTER_ID = util.dotdict({c.ep_attribute: c.cluster_id
+CLUSTER_ID = util.Dotdict({c.ep_attribute: c.cluster_id
                            for m in [clusters.closures, clusters.general, clusters.homeautomation,
                                      clusters.hvac, clusters.lighting, clusters.lightlink,
                                      clusters.manufacturer_specific, clusters.measurement,

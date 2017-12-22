@@ -1,7 +1,7 @@
 import enum
 
 import bellows.types as t
-from bellows.zigbee.util import dotdict
+from bellows.zigbee.util import Dotdict
 
 
 class PowerDescriptor(t.EzspStruct):
@@ -159,7 +159,7 @@ CLUSTERS = {
     # ... TODO optional stuff ...
 }
 
-CLUSTER_ID = dotdict({value[0]: key for key, value in CLUSTERS.items()})
+CLUSTER_ID = Dotdict({value[0]: key for key, value in CLUSTERS.items()})
 
 
 # Rewrite to (name, param_names, param_types)

@@ -1,4 +1,5 @@
 from unittest import mock
+import util
 
 import pytest
 
@@ -41,76 +42,86 @@ def zdo_f():
     return zdo.ZDO(dev)
 
 
-def test_request(zdo_f):
-    zdo_f.request(2, 65535)
+@util.async
+async def test_request(zdo_f):
+    await zdo_f.request(2, 65535)
     app_mock = zdo_f._device._application
     assert app_mock.request.call_count == 1
     assert app_mock.get_sequence.call_count == 1
 
 
-def test_bind(zdo_f):
-    zdo_f.bind(1, 1026)
+@util.async
+async def test_bind(zdo_f):
+    await zdo_f.bind(1, 1026)
     app_mock = zdo_f._device._application
     assert app_mock.request.call_count == 1
     assert app_mock.request.call_args[0][1].clusterId == 0x0021
 
 
-def test_unbind(zdo_f):
-    zdo_f.unbind(1, 1026)
+@util.async
+async def test_unbind(zdo_f):
+    await zdo_f.unbind(1, 1026)
     app_mock = zdo_f._device._application
     assert app_mock.request.call_count == 1
     assert app_mock.request.call_args[0][1].clusterId == 0x0022
 
 
-def test_leave(zdo_f):
-    zdo_f.leave()
+@util.async
+async def test_leave(zdo_f):
+    await zdo_f.leave()
     app_mock = zdo_f._device._application
     assert app_mock.request.call_count == 1
     assert app_mock.request.call_args[0][1].clusterId == 0x0034
 
 
-def _handle_match_desc(zdo_f, profile):
+async def _handle_match_desc(zdo_f, profile):
     zdo_f.reply = mock.MagicMock()
     aps = t.EmberApsFrame()
-    zdo_f.handle_message(False, aps, 123, 0x0006, [None, profile, [], []])
+    await zdo_f.handle_message(False, aps, 123, 0x0006, [None, profile, [], []])
     assert zdo_f.reply.call_count == 1
 
 
-def test_handle_match_desc_zha(zdo_f):
-    return _handle_match_desc(zdo_f, 260)
+@util.async
+async def test_handle_match_desc_zha(zdo_f):
+    return await _handle_match_desc(zdo_f, 260)
 
 
-def test_handle_match_desc_generic(zdo_f):
-    return _handle_match_desc(zdo_f, 0)
+@util.async
+async def test_handle_match_desc_generic(zdo_f):
+    return await _handle_match_desc(zdo_f, 0)
 
 
-def test_handle_addr(zdo_f):
+@util.async
+async def test_handle_addr(zdo_f):
     aps = t.EmberApsFrame()
     nwk = zdo_f._device.application.nwk
     zdo_f.reply = mock.MagicMock()
-    zdo_f.handle_message(False, aps, 234, 0x0001, [nwk])
+    await zdo_f.handle_message(False, aps, 234, 0x0001, [nwk])
     assert zdo_f.reply.call_count == 1
 
 
-def test_handle_announce(zdo_f):
+@util.async
+async def test_handle_announce(zdo_f):
     dev = zdo_f._device
     zdo_f.listener_event = mock.MagicMock()
     dev._application.devices.pop(dev.ieee)
     aps = t.EmberApsFrame()
-    zdo_f.handle_message(False, aps, 111, 0x0013, [0, dev.ieee, dev.nwk])
+    await zdo_f.handle_message(False, aps, 111, 0x0013, [0, dev.ieee, dev.nwk])
     assert zdo_f.listener_event.call_count == 1
 
 
-def test_handle_permit_join(zdo_f):
+@util.async
+async def test_handle_permit_join(zdo_f):
     aps = t.EmberApsFrame()
     zdo_f.listener_event = mock.MagicMock()
-    zdo_f.handle_message(False, aps, 111, 0x0036, [100, 1])
+    await zdo_f.handle_message(False, aps, 111, 0x0036, [100, 1])
     assert zdo_f.listener_event.call_count == 1
 
 
-def test_handle_unsupported(zdo_f):
+@util.async
+async def test_handle_unsupported(zdo_f):
     aps = t.EmberApsFrame()
-    zdo_f.handle_message(False, aps, 321, 0xffff, [])
+    await zdo_f.handle_message(False, aps, 321, 0xffff, [])
 
 
 def test_device_accessor(zdo_f):

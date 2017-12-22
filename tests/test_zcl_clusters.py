@@ -1,4 +1,5 @@
 import re
+import util
 
 from unittest import mock
 import bellows.zigbee.endpoint
@@ -53,11 +54,9 @@ def test_ep_attributes():
         assert cluster.ep_attribute not in seen
         seen.add(cluster.ep_attribute)
 
-        ep = bellows.zigbee.endpoint.Endpoint(None, 1)
-        assert not hasattr(ep, cluster.ep_attribute)
 
-
-def test_time_cluster():
+@util.async
+async def test_time_cluster():
     ep = mock.MagicMock()
     ep.device = mock.MagicMock()
     t = zcl.Cluster._registry[0x000a](ep)
@@ -65,21 +64,21 @@ def test_time_cluster():
     aps_frame = 0
     tsn = 0
 
-    t.handle_cluster_request(aps_frame, tsn, 1, [[0]])
+    await t.handle_cluster_request(aps_frame, tsn, 1, [[0]])
     assert ep.device.reply.call_count == 0
 
-    t.handle_cluster_request(aps_frame, tsn, 0, [[0]])
+    await t.handle_cluster_request(aps_frame, tsn, 0, [[0]])
     assert ep.device.reply.call_count == 1
     assert ep.device.reply.call_args[0][1][3] == 0
 
-    t.handle_cluster_request(aps_frame, tsn, 0, [[1]])
+    await t.handle_cluster_request(aps_frame, tsn, 0, [[1]])
     assert ep.device.reply.call_count == 2
     assert ep.device.reply.call_args[0][1][3] == 1
 
-    t.handle_cluster_request(aps_frame, tsn, 0, [[2]])
+    await t.handle_cluster_request(aps_frame, tsn, 0, [[2]])
     assert ep.device.reply.call_count == 3
     assert ep.device.reply.call_args[0][1][3] == 2
 
-    t.handle_cluster_request(aps_frame, tsn, 0, [[0, 1, 2]])
+    await t.handle_cluster_request(aps_frame, tsn, 0, [[0, 1, 2]])
     assert ep.device.reply.call_count == 4
     assert ep.device.reply.call_args[0][1][3] == 0

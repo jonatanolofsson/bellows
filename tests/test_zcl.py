@@ -1,4 +1,5 @@
 import asyncio
+import util
 from unittest import mock
 
 import pytest
@@ -89,53 +90,61 @@ def client_cluster(aps):
     return zcl.Cluster.from_id(epmock, 3)
 
 
-def test_request_general(cluster):
-    cluster.request(True, 0, [])
+@util.async
+async def test_request_general(cluster):
+    await cluster.request(True, 0, [])
     assert cluster._endpoint.device.request.call_count == 1
 
 
-def test_request_manufacturer(cluster):
-    cluster.request(True, 0, [t.uint8_t], 1)
+@util.async
+async def test_request_manufacturer(cluster):
+    await cluster.request(True, 0, [t.uint8_t], 1)
     assert cluster._endpoint.device.request.call_count == 1
     org_size = len(cluster._endpoint.device.request.call_args[0][1])
-    cluster.request(True, 0, [t.uint8_t], 1, manufacturer=1)
+    await cluster.request(True, 0, [t.uint8_t], 1, manufacturer=1)
     assert cluster._endpoint.device.request.call_count == 2
     assert org_size + 2 == len(cluster._endpoint.device.request.call_args[0][1])
 
 
-def test_reply_general(cluster):
-    cluster.reply(True, 0, [])
+@util.async
+async def test_reply_general(cluster):
+    await cluster.reply(True, 0, [])
     assert cluster._endpoint.device.reply.call_count == 1
 
 
-def test_reply_manufacturer(cluster):
-    cluster.reply(True, 0, [t.uint8_t], 1)
+@util.async
+async def test_reply_manufacturer(cluster):
+    await cluster.reply(True, 0, [t.uint8_t], 1)
     assert cluster._endpoint.device.reply.call_count == 1
     org_size = len(cluster._endpoint.device.reply.call_args[0][1])
-    cluster.reply(True, 0, [t.uint8_t], 1, manufacturer=1)
+    await cluster.reply(True, 0, [t.uint8_t], 1, manufacturer=1)
     assert cluster._endpoint.device.reply.call_count == 2
     assert org_size + 2 == len(cluster._endpoint.device.reply.call_args[0][1])
 
 
-def test_attribute_report(cluster):
+@util.async
+async def test_attribute_report(cluster):
     attr = zcl.foundation.Attribute()
     attr.attrid = 4
     attr.value = zcl.foundation.TypeValue()
     attr.value.value = 1
-    cluster.handle_message(False, aps, 0, 0x0a, [[attr]])
+    await cluster.handle_message(False, aps, 0, 0x0a, [[attr]])
     assert cluster._attr_cache[4] == 1
 
 
-def test_handle_request_unknown(cluster, aps):
-    cluster.handle_message(False, aps, 0, 0xff, [])
+@util.async
+async def test_handle_request_unknown(cluster, aps):
+    await cluster.handle_message(False, aps, 0, 0xff, [])
 
 
-def test_handle_cluster_request(cluster, aps):
-    cluster.handle_message(False, aps, 0, 256, [])
+@util.async
+async def test_handle_cluster_request(cluster, aps):
+    await cluster.handle_message(False, aps, 0, 256, [])
 
 
-def test_handle_unexpected_reply(cluster, aps):
-    cluster.handle_message(True, aps, 0, 0, [])
+@util.async
+async def test_handle_unexpected_reply(cluster, aps):
+    await cluster.handle_message(True, aps, 0, 0, [])
 
 
 def _mk_rar(attrid, value, status=0):
@@ -239,45 +248,54 @@ def test_item_access_attributes(cluster):
     loop.run_until_complete(inner())
 
 
-def test_write_attributes(cluster):
-    cluster.write_attributes({0: 5, 'app_version': 4})
+@util.async
+async def test_write_attributes(cluster):
+    await cluster.write_attributes({0: 5, 'app_version': 4})
     assert cluster._endpoint.device.request.call_count == 1
 
 
-def test_write_wrong_attribute(cluster):
-    cluster.write_attributes({0xff: 5})
+@util.async
+async def test_write_wrong_attribute(cluster):
+    await cluster.write_attributes({0xff: 5})
     assert cluster._endpoint.device.request.call_count == 1
 
 
-def test_write_attributes_wrong_type(cluster):
-    cluster.write_attributes({18: 2})
+@util.async
+async def test_write_attributes_wrong_type(cluster):
+    await cluster.write_attributes({18: 2})
     assert cluster._endpoint.device.request.call_count == 1
 
 
-def test_bind(cluster):
-    cluster.bind()
+@util.async
+async def test_bind(cluster):
+    await cluster.bind()
 
 
-def test_unbind(cluster):
-    cluster.unbind()
+@util.async
+async def test_unbind(cluster):
+    await cluster.unbind()
 
 
-def test_configure_reporting(cluster):
-    cluster.configure_reporting(0, 10, 20, 1)
+@util.async
+async def test_configure_reporting(cluster):
+    await cluster.configure_reporting(0, 10, 20, 1)
 
 
-def test_command(cluster):
-    cluster.command(0x00)
+@util.async
+async def test_command(cluster):
+    await cluster.command(0x00)
     assert cluster._endpoint.device.request.call_count == 1
 
 
-def test_command_attr(cluster):
-    cluster.reset_fact_default()
+@util.async
+async def test_command_attr(cluster):
+    await cluster.reset_fact_default()
     assert cluster._endpoint.device.request.call_count == 1
 
 
-def test_client_command_attr(client_cluster):
-    client_cluster.identify_query_response(0)
+@util.async
+async def test_client_command_attr(client_cluster):
+    await client_cluster.identify_query_response(0)
     assert client_cluster._endpoint.device.reply.call_count == 1
 
 
@@ -286,13 +304,15 @@ def test_command_invalid_attr(cluster):
         cluster.no_such_command()
 
 
-def test_invalid_arguments_cluster_command(cluster):
-    res = cluster.command(0x00, 1)
+@util.async
+async def test_invalid_arguments_cluster_command(cluster):
+    res = await cluster.command(0x00, 1)
     assert type(res.exception()) == ValueError
 
 
-def test_invalid_arguments_cluster_client_command(client_cluster):
-    res = client_cluster.client_command(0, 0, 0)
+@util.async
+async def test_invalid_arguments_cluster_client_command(client_cluster):
+    res = await client_cluster.client_command(0, 0, 0)
     assert type(res.exception()) == ValueError
 
 

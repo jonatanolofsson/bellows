@@ -1,4 +1,3 @@
-import functools
 import logging
 import asyncio
 
@@ -90,7 +89,7 @@ class ZDO(util.LocalLogMixin, util.ListenableMixin):
         dstaddr = types.MultiAddress()
         dstaddr.addrmode = 3
         dstaddr.ieee = self._device.application.ieee
-        dstaddr.endpoint = 1
+        dstaddr.endpoint = endpoint
         return await self.request(CLUSTER_ID.Bind_req, self._device.ieee, endpoint, cluster, dstaddr)
 
     async def unbind(self, endpoint, cluster):
@@ -100,7 +99,7 @@ class ZDO(util.LocalLogMixin, util.ListenableMixin):
         dstaddr.endpoint = endpoint
         return await self.request(CLUSTER_ID.Unbind_req, self._device.ieee, endpoint, cluster, dstaddr)
 
-    async def leave(self):
+    async def leave(self, endpoint=1):
         dstaddr = types.MultiAddress()
         dstaddr.addrmode = 3
         dstaddr.ieee = self._device.application.ieee

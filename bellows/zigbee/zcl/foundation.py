@@ -1,7 +1,7 @@
 import enum
 
 import bellows.types as t
-from bellows.zigbee.util import dotdict
+from bellows.zigbee.util import Dotdict
 
 
 class Status(t.uint8_t, enum.Enum):
@@ -271,4 +271,4 @@ COMMANDS = {
     # 0x10: ('Write attributes structured response', (, ), True),
 }
 
-COMMAND_ID = dotdict({value[0].replace(' ', '_'): key for key, value in COMMANDS.items()})
+COMMAND_ID = Dotdict({value[0].replace(' ', '_'): key for key, value in COMMANDS.items()})

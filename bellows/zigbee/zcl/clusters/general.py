@@ -762,8 +762,10 @@ class PollControl(Cluster):
     client_commands = {
         0x0000: ('checkin', (), False),
     }
+
     def handle_cluster_request(self, aps_frame, tsn, command_id, args):
         print("PollControl", command_id, args)
+
 
 class GreenPowerProxy(Cluster):
     cluster_id = 0x0021

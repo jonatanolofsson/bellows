@@ -1,15 +1,15 @@
 import enum
 import logging
-from bellows.zigbee.zcl import foundation, Cluster
+from bellows.zigbee.zcl import foundation
 from bellows.zigbee.device import Device
 # from bellows.zigbee.profiles.zll import PROFILE_ID as ZLL_PROFILE_ID
 from bellows.zigbee.profiles.zha import PROFILE_ID as ZHA_PROFILE_ID
 
 LOGGER = logging.getLogger(__name__)
 
+
 class Xiaomi(Device):
-    @staticmethod
-    async def attribute_updated(cluster, attrid, data):
+    async def attribute_updated(self, cluster, attrid, data):
         if cluster.cluster_id == 0 and attrid == 5:  # model name
             if not getattr(cluster, "xiaomi_bound", False):
                 model = data.decode()[5:]
@@ -18,10 +18,6 @@ class Xiaomi(Device):
                     LOGGER.info('Found Xiaomi door sensor')
                     res = await cluster.bind()
                     LOGGER.warning('Bind response is: %r', res)
-                    # res = await cluster.write_attributes({'cie_addr': device.application.ieee})
-                    # LOGGER.info('Attribute write response is: %r', res)
-                    res = await cluster.configure_reporting(attribute=0, min_interval=11 * 60 * 60, max_interval=12 * 60 * 60, reportable_change=1)
-                    LOGGER.warning('Configure reporting response is: %r', res)
                     cluster.xiaomi_bound = True
         elif attrid == 0xFF01:  # Heartbeat
             while data:

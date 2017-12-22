@@ -27,6 +27,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         self._joining = {}
         self._ieee = None
         self._nwk = None
+        self._dblistener = None
 
         if database_file is not None:
             self._dblistener = bellows.zigbee.appdb.PersistingListener(database_file, self)
@@ -57,7 +58,8 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
 
     async def startup(self, auto_form=False):
         """Perform a complete application startup"""
-        await self._dblistener.load()
+        if self._dblistener:
+            await self._dblistener.load()
         await self.initialize()
         e = self._ezsp
 
@@ -172,13 +174,13 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
             else:
                 self._handle_frame_sent(*args)
         elif frame_name == 'trustCenterJoinHandler':
-            ieee = args[1]
+            nwk = args[0]
             if args[2] == t.EmberDeviceUpdate.DEVICE_LEFT:
                 asyncio.ensure_future(self._handle_leave(*args))
             else:
-                if ieee not in self._joining:
-                    self._joining[ieee] = self._handle_join(*args)
-                asyncio.ensure_future(self._joining[ieee])
+                if nwk not in self._joining:
+                    self._joining[nwk] = self._handle_join(*args)
+                asyncio.ensure_future(self._joining[nwk])
 
     async def _handle_frame(self, message_type, aps_frame, lqi, rssi, sender, binding_index, address_index, message):
         try:
@@ -228,22 +230,23 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
 
         await device.handle_message(is_reply, aps_frame, tsn, command_id, args)
 
-    async def _handle_join(self, nwk, ieee, device_update, join_dec, parent_nwk):
+    async def _handle_join(self, nwk, ieee, device_update, join_dec, parent_nwk, no_init=False, manufacturer=None):
         LOGGER.info("Device 0x%04x (%s) joined the network", nwk, ieee)
         if ieee in self.devices:
             dev = await self.get_device(ieee)
             if dev.nwk != nwk:
                 LOGGER.debug("Device %s changed id (0x%04x => 0x%04x)", ieee, dev.nwk, nwk)
                 dev.nwk = nwk
-            elif dev.initializing or dev.status == bellows.zigbee.device.Status.INITIALIZED:
+            elif dev.status > bellows.zigbee.device.Status.NEW:
                 LOGGER.debug("Skip initialization for existing device %s", ieee)
                 return
         else:
-            dev = await self.add_device(ieee, nwk)
+            dev = await self.add_device(ieee, nwk, manufacturer=manufacturer)
 
         await self.listener_event('device_joined', dev)
-        await dev.initialize()
-        del self._joining[ieee]
+        if not no_init:
+            await dev.initialize()
+        del self._joining[nwk]
 
     async def _handle_leave(self, nwk, ieee, *args):
         LOGGER.info("Device 0x%04x (%s) left the network", nwk, ieee)
@@ -330,10 +333,10 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
 
     async def get_device(self, ieee=None, nwk=None):
         if ieee is not None:
-            if ieee in self._joining:
-                await self._joining[ieee]
             return self.devices[ieee]
 
+        if nwk in self._joining:
+            await self._joining[nwk]
         for dev in self.devices.values():
             # TODO: Make this not terrible
             if dev.nwk == nwk:

@@ -1,5 +1,6 @@
 import logging
 import sqlite3
+from itertools import chain
 
 import bellows.types as t
 import bellows.zigbee.device
@@ -16,8 +17,8 @@ def _sqlite_adapters():
     sqlite3.register_adapter(t.EmberEUI64, adapt_ieee)
 
     def convert_ieee(s):
-        l = [t.uint8_t(p, base=16) for p in s.split(b':')]
-        return t.EmberEUI64(l)
+        parts = [t.uint8_t(p, base=16) for p in s.split(b':')]
+        return t.EmberEUI64(parts)
     sqlite3.register_converter("ieee", convert_ieee)
 
 
@@ -89,13 +90,13 @@ class PersistingListener:
         self._create_index(
             "cluster_idx",
             "clusters",
-            "ieee, endpoint_id, cluster, is_input",
+            "ieee, endpoint_id",
         )
 
     def _create_table_cluster_attributes(self):
         self._create_table(
             "cluster_attributes",
-            "(ieee ieee, endpoint_id, cluster INTEGER, attrid INTEGER, value TEXT)",
+            "(ieee ieee, endpoint_id, cluster INTEGER, attrid INTEGER, value BLOB)",
         )
         self._create_index(
             "attribute_idx",
@@ -143,15 +144,11 @@ class PersistingListener:
         self._db.commit()
 
     def _save_clusters(self, endpoint):
-        self.execute("DELETE FROM clusters WHERE ieee = ?", (endpoint.device.ieee, ))
+        self.execute("DELETE FROM clusters WHERE ieee = ? AND endpoint_id = ?", (endpoint.device.ieee, endpoint.endpoint_id))
         q = "INSERT OR REPLACE INTO clusters VALUES (?, ?, ?, ?)"
         clusters = [
             (endpoint.device.ieee, endpoint.endpoint_id, cluster.cluster_id, cluster.is_input)
-            for cluster in endpoint.in_clusters.values()
-        ]
-        clusters += [
-            (endpoint.device.ieee, endpoint.endpoint_id, cluster.cluster_id, cluster.is_input)
-            for cluster in endpoint.out_clusters.values()
+            for cluster in chain(endpoint.in_clusters.values(), endpoint.out_clusters.values())
         ]
         self._cursor.executemany(q, clusters)
         self._db.commit()
