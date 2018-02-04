@@ -112,28 +112,33 @@ def devices(ctx, database):
                 cluster.name, cluster_id
             ))
 
-    ezsp = bellows.ezsp.EZSP()
-    app = bellows.zigbee.application.ControllerApplication(ezsp, database)
-    for ieee, dev in app.devices.items():
-        click.echo("Device:")
-        click.echo("  NWK: 0x%04x" % (dev.nwk, ))
-        click.echo("  IEEE: %s" % (ieee, ))
-        click.echo("  Endpoints:")
-        for epid, ep in dev.endpoints.items():
-            if epid == 0:
-                continue
-            if ep.status == bellows.zigbee.endpoint.Status.NEW:
-                click.echo("    %s: Uninitialized")
-            else:
-                click.echo(
-                    "    %s: profile=0x%02x, device_type=%s" % (
-                        epid,
-                        ep.profile_id,
-                        ep.device_type,
+    async def inner():
+        ezsp = bellows.ezsp.EZSP()
+        app = bellows.zigbee.application.ControllerApplication(ezsp, database)
+        await app._dblistener.load()
+        for ieee, dev in app.devices.items():
+            click.echo("Device:")
+            click.echo("  NWK: 0x%04x" % (dev.nwk, ))
+            click.echo("  IEEE: %s" % (ieee, ))
+            click.echo("  Manufacturer: 0x%04x" % (await dev.get_manufacturer_code(), ))
+            click.echo("  Endpoints:")
+            for epid, ep in dev.endpoints.items():
+                if epid == 0:
+                    continue
+                if ep.status == bellows.zigbee.endpoint.Status.NEW:
+                    click.echo("    %s: Uninitialized")
+                else:
+                    click.echo(
+                        "    %s: profile=0x%02x, device_type=%s" % (
+                            epid,
+                            ep.profile_id,
+                            ep.device_type,
+                        )
                     )
-                )
-                print_clusters("Input Clusters", ep.in_clusters)
-                print_clusters("Output Clusters", ep.out_clusters)
+                    print_clusters("Input Clusters", ep.in_clusters)
+                    print_clusters("Output Clusters", ep.out_clusters)
+
+    return asyncio.get_event_loop().run_until_complete(inner())
 
 
 @main.group()

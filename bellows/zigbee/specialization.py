@@ -1,5 +1,6 @@
 import enum
 import logging
+import bellows.types as t
 from bellows.zigbee.zcl import foundation
 from bellows.zigbee.device import Device
 # from bellows.zigbee.profiles.zll import PROFILE_ID as ZLL_PROFILE_ID
@@ -9,6 +10,10 @@ LOGGER = logging.getLogger(__name__)
 
 
 class Xiaomi(Device):
+    async def _discover_endpoints():
+        LOGGER.info("No point looking for endpoints on Xiaomi")
+        return True
+
     async def attribute_updated(self, cluster, attrid, data):
         if cluster.cluster_id == 0 and attrid == 5:  # model name
             if not getattr(cluster, "xiaomi_bound", False):
@@ -44,7 +49,8 @@ class Xiaomi(Device):
 class IKEA(Device):
     def get_aps(self, profile, cluster, endpoint):
         aps = Device.get_aps(self, profile, cluster, endpoint)
-        aps.profileId = ZHA_PROFILE_ID
+        if profile != 0:
+            aps.profileId = t.uint16_t(ZHA_PROFILE_ID)
         return aps
 
 
@@ -59,17 +65,11 @@ SPECIALIZED_DEVICES = {
 }
 
 
-async def get_device(application, ieee, nwk, manufacturer=None):
+async def get_device(dev):
     """Get device."""
-    dev = None
-    if manufacturer is None:
-        dev = Device(application, ieee, nwk, manufacturer)
-        await dev.initialize(silent=True)
-        manufacturer = dev.manufacturer_code
+    manufacturer = await dev.get_manufacturer_code()
 
     if manufacturer in SPECIALIZED_DEVICES:
-        return SPECIALIZED_DEVICES[manufacturer](application, ieee, nwk, manufacturer)
+        dev = SPECIALIZED_DEVICES[manufacturer](dev._application, dev._ieee, dev.nwk, manufacturer)
 
-    if dev is None:
-        dev = Device(application, ieee, nwk, manufacturer)
     return dev

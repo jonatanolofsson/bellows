@@ -25,7 +25,7 @@ device = click.option(
     '-d', '--device',
     type=click.STRING,
     envvar='EZSP_DEVICE',
-    required=True,
+    default="/dev/zigbee"
 )
 
 baudrate = click.option(
@@ -56,7 +56,7 @@ duration_ms = click.option(
 duration_s = click.option(
     '-t', '--duration', 'duration_s',
     type=click.INT, metavar='SECONDS',
-    default=30,
+    default=60,
     show_default=True,
 )
 

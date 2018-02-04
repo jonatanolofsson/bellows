@@ -5,7 +5,7 @@ import os
 
 import bellows.types as t
 import bellows.zigbee.appdb
-import bellows.zigbee.device
+from bellows.zigbee.device import Device
 import bellows.zigbee.specialization
 import bellows.zigbee.util
 import bellows.zigbee.zcl
@@ -142,8 +142,9 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
     async def add_device(self, ieee, nwk, manufacturer=None):
         assert isinstance(ieee, t.EmberEUI64)
         # TODO: Shut down existing device
-        dev = await bellows.zigbee.specialization.get_device(self, ieee, nwk, manufacturer)
-        self.devices[ieee] = dev
+        self.devices[ieee] = dev = Device(self, ieee, nwk, manufacturer)
+        self.devices[ieee] = dev = await bellows.zigbee.specialization.get_device(dev)
+        LOGGER.info("Got specialization device: 0x%04x", await dev.get_manufacturer_code())
         return dev
 
     async def remove(self, ieee):
@@ -180,7 +181,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
             else:
                 if nwk not in self._joining:
                     self._joining[nwk] = self._handle_join(*args)
-                asyncio.ensure_future(self._joining[nwk])
+                    asyncio.ensure_future(self._joining[nwk])
 
     async def _handle_frame(self, message_type, aps_frame, lqi, rssi, sender, binding_index, address_index, message):
         try:
@@ -202,6 +203,8 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         if is_reply:
             await self._handle_reply(sender, aps_frame, tsn, command_id, args)
         else:
+            while sender in self._joining:
+                asyncio.sleep(0)
             await self._handle_message(False, sender, aps_frame, tsn, command_id, args)
 
     async def _handle_reply(self, sender, aps_frame, tsn, command_id, args):
@@ -233,20 +236,27 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
     async def _handle_join(self, nwk, ieee, device_update, join_dec, parent_nwk, no_init=False, manufacturer=None):
         LOGGER.info("Device 0x%04x (%s) joined the network", nwk, ieee)
         if ieee in self.devices:
+            LOGGER.info("Known IEEE, getting device.. ")
             dev = await self.get_device(ieee)
+            LOGGER.info("Got device")
             if dev.nwk != nwk:
-                LOGGER.debug("Device %s changed id (0x%04x => 0x%04x)", ieee, dev.nwk, nwk)
+                LOGGER.info("Device %s changed id (0x%04x => 0x%04x)", ieee, dev.nwk, nwk)
                 dev.nwk = nwk
-            elif dev.status > bellows.zigbee.device.Status.NEW:
-                LOGGER.debug("Skip initialization for existing device %s", ieee)
-                return
         else:
+            LOGGER.info("Adding device")
             dev = await self.add_device(ieee, nwk, manufacturer=manufacturer)
+            LOGGER.info("Added device")
 
-        await self.listener_event('device_joined', dev)
-        if not no_init:
-            await dev.initialize()
+            LOGGER.info("Firing: device_joined")
+            await self.listener_event('device_joined', dev)
+            LOGGER.info("Returned from: device_joined")
+
         del self._joining[nwk]
+
+        if not no_init:
+            LOGGER.info("Initializing newly joined device 0x%04x", dev.nwk)
+            await dev.initialize()
+            LOGGER.info("Init finished")
 
     async def _handle_leave(self, nwk, ieee, *args):
         LOGGER.info("Device 0x%04x (%s) left the network", nwk, ieee)
@@ -333,14 +343,16 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
 
     async def get_device(self, ieee=None, nwk=None):
         if ieee is not None:
+            while self.devices[ieee] is None:
+                asyncio.sleep(0)
             return self.devices[ieee]
 
-        if nwk in self._joining:
-            await self._joining[nwk]
-        for dev in self.devices.values():
-            # TODO: Make this not terrible
-            if dev.nwk == nwk:
-                return dev
+        # TODO: Make this not terrible
+        for ieee in self.devices:
+            while self.devices[ieee] is None:
+                asyncio.sleep(0)
+            if self.devices[ieee].nwk == nwk:
+                return self.devices[ieee]
 
         raise KeyError
 

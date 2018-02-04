@@ -14,12 +14,8 @@ class Status(enum.IntEnum):
     """The status of a Device"""
     # No initialization done
     NEW = 0
-    # Initialization started
-    INITIALIZING = 10
-    # ZDO endpoint discovery done
-    ZDO_INIT = 20
     # Endpoints initialized
-    ENDPOINTS_INIT = 30
+    ENDPOINTS_INITED = 10
     # Initialization finished
     INITIALIZED = 100
 
@@ -47,7 +43,7 @@ class Device(zutil.LocalLogMixin):
                 raise Exception("Endpoint request failed: %s", epr)
         except Exception as exc:
             self.warn("Failed ZDO request during device initialization: %s", exc)
-            return
+            return False
 
         self.info("Discovered endpoints: %s", epr[2])
 
@@ -58,6 +54,7 @@ class Device(zutil.LocalLogMixin):
             if endpoint_id == 0:  # ZDO
                 continue
             await self.endpoints[endpoint_id].initialize()
+        return True
 
     async def get_manufacturer_code(self):
         if self._manufacturer_code is None:
@@ -84,16 +81,13 @@ class Device(zutil.LocalLogMixin):
         return self._manufacturer_code
 
     async def initialize(self, silent=False):
-        if self.status > Status.NEW:
-            return
-        self.status = Status.INITIALIZING
         if self.status == Status.NEW:
-            await self._discover_endpoints()
-            self.status = Status.ZDO_INIT
+            if await self._discover_endpoints():
+                self.status = Status.ENDPOINTS_INITED
 
-        self.status = Status.ENDPOINTS_INIT
-        await self.get_manufacturer_code()
-        self.status = Status.INITIALIZED
+        if await self.get_manufacturer_code() is not None:
+            self.status = Status.INITIALIZED
+
         if not silent:
             await self._application.listener_event('device_initialized', self)
 

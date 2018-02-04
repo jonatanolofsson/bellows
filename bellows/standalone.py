@@ -133,7 +133,7 @@ class RestServer:
         try:
             light_id = int(request.match_info['id'], 16)
             try:
-                light = self.app.get_device(nwk=light_id)
+                dev = await self.app.get_device(nwk=light_id)
             except KeyError:
                 log.info(str([hex(d.nwk) for d in self.app.devices.values()]))
                 raise web.HTTPNotFound()
@@ -141,10 +141,15 @@ class RestServer:
             if "on" in data:
                 if data["on"]:
                     log.info('Turn light on')
-                    await light[1].on_off.on()
+                    await dev[1].on_off.on()
                 else:
                     log.info('Turn light off')
-                    await light[1].on_off.off()
+                    await dev[1].on_off.off()
+            if "bri" in data and 0 <= data["bri"] <= 255:
+                await dev[1].level.move_to_level_with_on_off(
+                    data["bri"],
+                    data["transitiontime"] if "transitiontime" in data else 0
+                )
         except json.decoder.JSONDecodeError as err:
             log.info("Invalid json data")
         finally:
