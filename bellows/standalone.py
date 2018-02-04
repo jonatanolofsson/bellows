@@ -150,6 +150,11 @@ class RestServer:
                     data["bri"],
                     data["transitiontime"] if "transitiontime" in data else 0
                 )
+            if "ct" in data:
+                await dev[1].light_color.move_to_color_temp(
+                    data["ct"],
+                    data["transitiontime"] if "transitiontime" in data else 0
+                )
         except json.decoder.JSONDecodeError as err:
             log.info("Invalid json data")
         finally:
