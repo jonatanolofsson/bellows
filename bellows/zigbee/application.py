@@ -141,9 +141,11 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
     async def add_device(self, ieee, nwk, manufacturer=None):
         assert isinstance(ieee, t.EmberEUI64)
         # TODO: Shut down existing device
+        LOGGER.info("Adding device")
         self.devices[ieee] = dev = Device(self, ieee, nwk, manufacturer)
+        LOGGER.info("Got base device")
         self.devices[ieee] = dev = await bellows.zigbee.specialization.get_device(dev)
-        LOGGER.info("Got specialization device: 0x%04x", await dev.get_manufacturer_code())
+        LOGGER.info("Got specialization device: 0x%04x", dev._manufacturer_code)
         return dev
 
     async def remove(self, ieee):
@@ -236,7 +238,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
     async def _handle_join(self, nwk, ieee, device_update, join_dec, parent_nwk, no_init=False, manufacturer=None):
         LOGGER.info("Device 0x%04x (%s) joined the network", nwk, ieee)
         if ieee in self.devices:
-            LOGGER.info("Known IEEE, getting device.. ")
+            LOGGER.info("Known IEEE, updating device.. ")
             dev = await self.get_device(ieee)
             LOGGER.info("Got device")
             if dev.nwk != nwk:
@@ -251,18 +253,19 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
             await self.listener_event('device_joined', dev)
             LOGGER.info("Returned from: device_joined")
 
-        del self._joining[nwk]
-
-        if not no_init:
             LOGGER.info("Initializing newly joined device 0x%04x", dev.nwk)
             await dev.initialize()
             LOGGER.info("Init finished")
+
+        del self._joining[nwk]
 
     async def _handle_leave(self, nwk, ieee, *args):
         LOGGER.info("Device 0x%04x (%s) left the network", nwk, ieee)
         dev = self.devices.get(ieee, None)
         if dev is not None:
             await self.listener_event('device_left', dev)
+            if ieee in self.devices:
+                del self.devices[ieee]
 
     def _handle_frame_failure(self, message_type, destination, aps_frame, message_tag, status, message):
         try:

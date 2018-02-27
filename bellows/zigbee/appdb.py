@@ -50,7 +50,7 @@ class PersistingListener:
         self._save_device(device)
 
     def device_left(self, device):
-        pass
+        self._remove_device(device)
 
     def device_removed(self, device):
         self._remove_device(device)

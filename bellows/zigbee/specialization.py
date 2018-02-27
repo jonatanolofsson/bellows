@@ -1,3 +1,4 @@
+import asyncio
 import enum
 import logging
 import bellows.types as t
@@ -70,7 +71,11 @@ SPECIALIZED_DEVICES = {
 
 async def get_device(dev):
     """Get device."""
-    manufacturer = await dev.get_manufacturer_code()
+    for i in range(3):
+        manufacturer = await dev.get_manufacturer_code()
+        if manufacturer:
+            break
+        asyncio.sleep(1)
 
     if manufacturer in SPECIALIZED_DEVICES:
         dev = SPECIALIZED_DEVICES[manufacturer](dev._application, dev._ieee, dev.nwk, manufacturer)
