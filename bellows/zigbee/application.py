@@ -23,7 +23,6 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         self._ezsp = ezsp
         self.devices = {}
         self._pending = {}
-        self._listeners = {}
         self._joining = {}
         self._ieee = None
         self._nwk = None
@@ -203,8 +202,9 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         if is_reply:
             await self._handle_reply(sender, aps_frame, tsn, command_id, args)
         else:
-            while sender in self._joining:
-                asyncio.sleep(0)
+            if aps_frame.destinationEndpoint != 0:
+                while sender in self._joining:
+                    await asyncio.sleep(0.1)
             await self._handle_message(False, sender, aps_frame, tsn, command_id, args)
 
     async def _handle_reply(self, sender, aps_frame, tsn, command_id, args):
@@ -344,13 +344,13 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
     async def get_device(self, ieee=None, nwk=None):
         if ieee is not None:
             while self.devices[ieee] is None:
-                asyncio.sleep(0)
+                await asyncio.sleep(0.1)
             return self.devices[ieee]
 
         # TODO: Make this not terrible
         for ieee in self.devices:
             while self.devices[ieee] is None:
-                asyncio.sleep(0)
+                await asyncio.sleep(0.1)
             if self.devices[ieee].nwk == nwk:
                 return self.devices[ieee]
 

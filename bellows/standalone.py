@@ -1,11 +1,11 @@
 """Standalone websocket interface to bellows."""
 
-from aiohttp import web
 import asyncio
 import functools
 import json
 import logging
 import websockets
+from aiohttp import web
 
 
 log = logging.getLogger(__name__)
@@ -139,12 +139,16 @@ class RestServer:
                 raise web.HTTPNotFound()
             data = await request.json()
             if "on" in data:
+                val = await dev[1].on_off['on_off']
+                log.info("Light was %s (%s)", "on" if val else "off", val)
                 if data["on"]:
                     log.info('Turn light on')
                     await dev[1].on_off.on()
                 else:
                     log.info('Turn light off')
                     await dev[1].on_off.off()
+                val = await dev[1].on_off['on_off']
+                log.info("Light is now %s (%s)", "on" if val else "off", val)
             if "bri" in data and 0 <= data["bri"] <= 255:
                 await dev[1].level.move_to_level_with_on_off(
                     data["bri"],
@@ -208,12 +212,13 @@ class WsServer:
     async def start(self):
         """Start."""
         self.srv = await websockets.serve(self._handler,
-                                               self.host, self.port)
+                                          self.host,
+                                          self.port)
 
     async def broadcast(self, *args, **kwargs):
         """Write to all sockets."""
-        for conn in self.connected:
-            await conn.socket.send(*args, **kwargs)
+        await asyncio.gather(
+            *[conn.socket.send(*args, **kwargs) for conn in self.connected])
 
     async def _handler(self, socket, path):
         """Handle connection."""

@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import functools
 import logging
 import os
@@ -13,24 +14,33 @@ LOGGER = logging.getLogger(__name__)
 
 class ListenableMixin:
     def add_listener(self, listener):
+        """Add listener."""
         if listener is None:
             return None
-        id_ = id(listener)
-        while id_ in self._listeners:
-            id_ += 1
-        self._listeners[id_] = listener
-        return id_
+
+        if not hasattr(self, '_listeners'):
+            self._listeners = []
+
+        self._listeners.append(listener)
 
     async def listener_event(self, method_name, *args):
-        for listener in self._listeners.values():
+        """Notify listeners."""
+
+        if not hasattr(self, '_listeners'):
+            self._listeners = []
+            return
+
+        async def _cast(listener):
             try:
                 method = getattr(listener, method_name, None)
-                if asyncio.iscoroutinefunction(method):
-                    await method(*args)
-                elif callable(method):
-                    method(*args)
-            except Exception as e:
-                LOGGER.warning("Error calling listener.%s: %s", method_name, e)
+                if callable(method):
+                    res = method(*args)
+                    if inspect.isawaitable(res):
+                        await res
+            except Exception as err:
+                LOGGER.warning("Error calling listener.%s: %s", method_name, err)
+
+        await asyncio.gather(*[_cast(l) for l in self._listeners])
 
 
 class LocalLogMixin:
@@ -205,3 +215,7 @@ class Dotdict(dict):
     __getattr__ = dict.get
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
+
+def convert_ieee(s):
+    parts = [t.uint8_t(p, base=16) for p in s.split(':')]
+    return t.EmberEUI64(parts)

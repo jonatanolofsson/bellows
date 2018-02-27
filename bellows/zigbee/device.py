@@ -20,7 +20,7 @@ class Status(enum.IntEnum):
     INITIALIZED = 100
 
 
-class Device(zutil.LocalLogMixin):
+class Device(zutil.LocalLogMixin, zutil.ListenableMixin):
     """A device on the network"""
 
     def __init__(self, application, ieee, nwk, manufacturer=None):

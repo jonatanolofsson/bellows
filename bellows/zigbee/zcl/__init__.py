@@ -132,8 +132,10 @@ class Cluster(util.LocalLogMixin, metaclass=Registry):
             manufacturer = b''
         data = bytes([frame_control]) + manufacturer + bytes([aps.sequence, command_id])
         data += t.serialize(args, schema)
-
-        return await self._endpoint.device.request(aps, data)
+        LOGGER.info("Sending request")
+        r = await self._endpoint.device.request(aps, data)
+        LOGGER.info("Sending request ok")
+        return r
 
     async def reply(self, general, command_id, schema, *args, manufacturer=None):
         if len(schema) != len(args):
@@ -163,10 +165,12 @@ class Cluster(util.LocalLogMixin, metaclass=Registry):
 
         self.debug("ZCL request 0x%04x: %s", command_id, args)
         if command_id <= 0xff:
+            await self._endpoint.device.listener_event('zdo_command', self, aps_frame, tsn, command_id, args)
             await self._endpoint.device.application.listener_event('zdo_command', self, aps_frame, tsn, command_id, args)
         else:
             # Unencapsulate bad hack
             command_id -= 256
+            await self._endpoint.device.listener_event('cluster_command', self, aps_frame, tsn, command_id, args)
             await self._endpoint.device.application.listener_event('cluster_command', self, aps_frame, tsn, command_id, args)
             await self.handle_cluster_request(aps_frame, tsn, command_id, args)
             return
@@ -317,6 +321,7 @@ class Cluster(util.LocalLogMixin, metaclass=Registry):
 
     async def _update_attribute(self, attrid, value):
         self._attr_cache[attrid] = value
+        await self._endpoint.device.listener_event('attribute_updated', self, attrid, value)
         await self._endpoint.device.application.listener_event('attribute_updated', self, attrid, value)
 
     async def update_attribute_local(self, attr, value):
@@ -350,7 +355,15 @@ class Cluster(util.LocalLogMixin, metaclass=Registry):
             raise AttributeError("No such command name: %s" % (name, ))
 
     def __getitem__(self, key):
-        return self.read_attributes([key], allow_cache=True, raw=True)
+        async def getitem():
+            """Make getitem async."""
+            nonlocal key
+            allow_cache = True
+            if isinstance(key, tuple):
+                allow_cache = key[1] if len(key) >= 2 else False
+                key = key[0]
+            return await self.read_attributes([key], allow_cache=allow_cache, raw=True)
+        return getitem()
 
 
 # Import to populate the registry

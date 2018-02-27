@@ -33,7 +33,6 @@ class ZDO(util.LocalLogMixin, util.ListenableMixin):
     """The ZDO endpoint of a device"""
     def __init__(self, device):
         self._device = device
-        self._listeners = {}
 
     def _serialize(self, command, *args):
         aps = self._device.get_aps(profile=0, cluster=command, endpoint=0)

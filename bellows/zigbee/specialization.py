@@ -3,6 +3,7 @@ import logging
 import bellows.types as t
 from bellows.zigbee.zcl import foundation
 from bellows.zigbee.device import Device
+from bellows.zigbee.endpoint import Status as EpStatus
 # from bellows.zigbee.profiles.zll import PROFILE_ID as ZLL_PROFILE_ID
 from bellows.zigbee.profiles.zha import PROFILE_ID as ZHA_PROFILE_ID
 
@@ -10,8 +11,10 @@ LOGGER = logging.getLogger(__name__)
 
 
 class Xiaomi(Device):
-    async def _discover_endpoints():
+    async def _discover_endpoints(self):
         LOGGER.info("No point looking for endpoints on Xiaomi")
+        ep = self.add_endpoint(1)
+        ep.status = EpStatus.INITIALIZED
         return True
 
     async def attribute_updated(self, cluster, attrid, data):

@@ -1,3 +1,4 @@
+import asyncio
 import enum
 import logging
 
@@ -31,7 +32,6 @@ class Endpoint(zutil.LocalLogMixin, zutil.ListenableMixin):
         self.out_clusters = {}
         self._cluster_attr = {}
         self.status = Status.NEW
-        self._listeners = {}
 
     async def initialize(self):
         # if self.status != Status.NEW:
@@ -107,7 +107,8 @@ class Endpoint(zutil.LocalLogMixin, zutil.ListenableMixin):
             await self.listener_event("unknown_cluster_message", is_reply,
                                       command_id, args)
             self.add_cluster(aps_frame.clusterId, True)
-            await self._device._application.listener_event('device_updated', self.device)
+            await asyncio.gather(self._device.listener_event('device_updated', self.device),
+                                 self._device._application.listener_event('device_updated', self.device))
             handler = self.in_clusters[aps_frame.clusterId].handle_message
 
         await handler(is_reply, aps_frame, tsn, command_id, args)
